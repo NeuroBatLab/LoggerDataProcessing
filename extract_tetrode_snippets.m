@@ -15,7 +15,7 @@ if nargin<4
 end
 
 for channel_i = 1:length(Channels)
-    Filename=fullfile(Data_folder,['CSC' num2str(Channels(channel_i)) '.mat']);
+    Filename=fullfile(Data_folder,sprintf('*CSC%d.mat', num2str(Channels(channel_i))));
     % If this is the first channel of the bundle
     % First delete the peaks that would lead to spike waveform
     % windows that extend beyond the recording time
@@ -37,12 +37,12 @@ for channel_i = 1:length(Channels)
     % For all channels, collect the spike snippets
     load(Filename, 'Filtered_voltage_trace');
     for spike_i=1:Num_spikes
-        Spike_snippets(:,channel_i,spike_i)=Filtered_voltage_trace(Sample_indices_of_peaks(spike_i)+Spike_window(1):Sample_indices_of_peaks(spike_i)+Spike_window(2))'; %#ok<IDISVAR,NODEF> % save the waveforms of the current spike (units are uV)
+        Spike_snippets(:,channel_i,spike_i)=Filtered_voltage_trace(Sample_indices_of_peaks(spike_i)+Spike_window(1):Sample_indices_of_peaks(spike_i)+Spike_window(2))'; % save the waveforms of the current spike (units are uV)
     end
 end
 
 if FigCheck
-    figure()
+    figure() %#ok<UNRCH>
     for spike_i = 1:Num_spikes
         clf
         for channel_i = 1:length(Channels)

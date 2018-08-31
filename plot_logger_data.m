@@ -35,12 +35,12 @@ end
 if nargin<2
     % Loop through the loggers and determine the logger that was started
     % last, that will be the start time point for plotting
-    StartFile1 = nan(NLog,1);
+    StartFile = nan(NLog,1);
     for ll=1:NLog
         DataFolder = fullfile(InputFolder, 'Loggers', sprintf('Logger%d',LoggerID(ll)), 'extracted_data');
-        DataFiles = dir(fullfile(DataFolder, 'CSC*.mat'));
-        Data = load(DataFiles(1).name); % Just load one of the data file (one file per channel)
-        StartFile1(ll) = Data.Timestamps_first_samples_usec(1); % extract the time stamp (trasnceiver time) of the first sample of the first recorded file.
+        CSCFiles = dir(fullfile(DataFolder, '*CSC*.mat'));
+        Data = load(CSCFiles(1).name); % Just load one of the data file (one file per channel)
+        StartFile(ll) = Data.Timestamps_first_samples_usec(1); % extract the time stamp (transceiver time) of the first sample of the first recorded file.
     end
     Start = round(max(StartFile)/10^6);% in seconds
 end
@@ -56,28 +56,35 @@ TimeRef_usec = nan(NLog,1);
 EstimatedFS = cell(NLog,1);
 for ll=1:NLog
         DataFolder = fullfile(InputFolder, 'Loggers', sprintf('Logger%d',LoggerID(ll)), 'extracted_data');
-        DataFiles = dir(fullfile(DataFolder, 'CSC*.mat'));
-        NChannels = length(DataFiles);
-        if NChannels>1 % this is a Neural Logger, two choices here: pot the amplitude of the filered voltage signal of each channel or extract spikes for each tetrode and plot a raster
-            if strcmp(NeuralPlotMode, 'power')
+        CSCFiles = dir(fullfile(DataFolder, '*CSC*.mat'));
+        NChannels = length(CSCFiles);
+        if NChannels>1 % this is a Neural Logger, two choices here: plot the amplitude of the filered voltage signal of each channel or extract spikes for each tetrode and plot a raster
+            % Identify the onset time of the first TTL pulse (That will be
+            % used as a reference for transceiver time to allign the
+            % loggers
+            Events = load(fullfile(CSCFiles(1).folder ,'EVENTS.mat'));
+            FirstRisingInd = find(contains(Events.event_types_and_details, 'rising edge'),1,'first');
+            FirstFallingInd = find(contains(Events.event_types_and_details, 'falling edge'),1,'first');
+            if ~round((Events.event_timestamps_usec(FirstFallingInd) - Events.event_timestamps_usec(FirstRisingInd))*10^-3)==6
+                error('The first recorded TTL pulse is not of the expected duration of 6ms but is: %d usec\n',Events.event_timestamps_usec(FirstFallingInd) - Events.event_timestamps_usec(FirstRisingInd));
+            end
+            TimeRef_usec(ll) = Events.event_timestamps_usec(FirstRisingInd);
+            
+            % Check if spike files are present and plot either a power
+            % graph or a ratser.
+            ST_files = dir(fullfile(DataFolder, '*Tetrode_spikes_time*.mat'));
+            SU_files = dir(fullfile(DataFolder, '*TT*SS*.mat'));
+            if strcmp(NeuralPlotMode, 'power') || (isempty(ST_files) && isempty(SU_files))
+                NeuralPlotMode= 'power';
+                fprintf(1, 'The power of each electrode is plotted\n');
                 SnipData{ll} = cell(NChannels,1);
                 EstimatedFS{ll} = nan(NChannels,1);
-                ParamDir = dir(fullfile(DataFiles(1).folder, 'extract_logger_data_p*.mat'));
+                ParamDir = dir(fullfile(CSCFiles(1).folder, 'extract_logger_data_p*.mat'));
                 Param = load(fullfile(ParamDir(1).folder,ParamDir(1).name));
                 for cc=1:NChannels
-                    Data = load(fullfile(DataFiles(cc).folder ,DataFiles(cc).name)); % Load one of the data file
-                        % Identify the onset time of the first TTL pulse (That will be
-                     % used as a reference for transceiver time to allign the
-                     % loggers
-                     Events = load(fullfile(DataFiles(cc).folder ,'EVENTS.mat'));
-                     FirstRisingInd = find(contains(Events.event_types_and_details, 'rising edge'),1,'first');
-                     FirstFallingInd = find(contains(Events.event_types_and_details, 'falling edge'),1,'first');
-                     if ~round((Events.event_timestamps_usec(FirstFallingInd) - Events.event_timestamps_usec(FirstRisingInd))*10^-3)==6
-                         error('The first recorded TTL pulse is not of the expected duration of 6ms but is: %d usec\n',Events.event_timestamps_usec(FirstFallingInd) - Events.event_timestamps_usec(FirstRisingInd));
-                     end
-                     TimeRef_usec(ll) = Events.event_timestamps_usec(FirstRisingInd);
-
-                        % Identify the onset time closest to the start requested
+                    Data = load(fullfile(CSCFiles(cc).folder ,CSCFiles(cc).name)); % Load one of the data file
+                    
+                    % Identify the onset time closest to the start requested
                     % and the sample start
                     EstimatedFS{ll}(cc) = nanmean(Data.Estimated_channelFS_Transceiver(:,1));
                     Timestamps_1st_samples_usec = Data.Timestamps_of_first_samples_usec - TimeRef_usec(ll);
@@ -139,14 +146,48 @@ for ll=1:NLog
 
                 end
             elseif strcmp(NeuralPlotMode, 'raster')
-                % HERE goes the code to plot a raster plot of the data
+                if isempty(SU_files)
+                    fprintf(1,'No data spike sorted, the detected spikes from the 4 tetrodes will be plotted\n');
+                    % To re-align spike arrival times that are referenced
+                    % to the neural-logger first data file onset time to
+                    % the present reference time, we need to load the time
+                    % of the first data file onset.
+                    load(fullfile(CSCFiles(1).folder, CSCFiles(1).name), 'Timestamps_of_first_samples_usec');
+                    Num_MU = length(ST_files);
+                    SnipData{ll} = cell(Num_MU,1);
+                    for uu=1:Num_MU
+                        load(fullfile(ST_files(uu).folder, ST_files(uu).name), 'Spike_arrival_times')
+                        % Convert spike arrival times
+                        Spike_arrival_times = Spike_arrival_times + Timestamps_of_first_samples_usec(1) - TimeRef_usec(ll);
+                        % Find the spike arrival times that are between the
+                        % requested times
+                        SnipData{ll}{uu} = Spike_arrival_times(logical((Spike_arrival_times/10^6>Start) .* (Spike_arrival_times/10^6<Stop)));
+                    end
+                else
+                    Num_SU = length(SU_files);
+                    fprintf(1,'%d Spike sorted units will be plotted\n', Num_SU);
+                    % To re-align spike arrival times that are referenced
+                    % to the neural-logger first data file onset time to
+                    % the present reference time, we need to load the time
+                    % of the first data file onset.
+                    load(fullfile(CSCFiles(1).folder, CSCFiles(1).name), 'Timestamps_of_first_samples_usec');
+                    SnipData{ll} = cell(Num_SU,1);
+                    for uu=1:Num_SU
+                        load(fullfile(SU_files(uu).folder, SU_files(uu).name), 'Spike_arrival_times')
+                        % Convert spike arrival times
+                        Spike_arrival_times = Spike_arrival_times + Timestamps_of_first_samples_usec(1) - TimeRef_usec(ll);
+                        % Find the spike arrival times that are between the
+                        % requested times
+                        SnipData{ll}{uu} = Spike_arrival_times(logical((Spike_arrival_times/10^6>Start) .* (Spike_arrival_times/10^6<Stop)))/10^3;
+                    end
+                end
             end
         else % This is an audio logger. Plot the wave form and a spectrogram
-             Data = load(fullfile(DataFiles.folder ,DataFiles.name));
+             Data = load(fullfile(CSCFiles.folder ,CSCFiles.name));
              % Identify the onset time of the first TTL pulse (That will be
              % used as a reference for transceiver time to allign the
              % loggers
-             Events = load(fullfile(DataFiles.folder ,'EVENTS.mat'));
+             Events = load(fullfile(CSCFiles.folder ,'EVENTS.mat'));
              FirstRisingInd = find(contains(Events.event_types_and_details, 'rising edge'),1,'first');
              FirstFallingInd = find(contains(Events.event_types_and_details, 'falling edge'),1,'first');
              if ~round((Events.event_timestamps_usec(FirstFallingInd) - Events.event_timestamps_usec(FirstRisingInd))*10^-3)==6
@@ -190,7 +231,10 @@ end
 figure(2)
 MaxWaveform = nan(NLog,1);
 for ll=1:NLog
-    if iscell(SnipData{ll})
+    if iscell(SnipData{ll}) && strcmp(NeuralPlotMode, 'power') % This is a neural logger and we plot the power of each electrode
+        % Snippets of data don't always have the exact same length due to
+        % sample rate estimation variation between channels. the following lines ensure that the
+        % snippets have the exact same length.
         LLDD = nan(length(SnipData{ll}),1);
         for dd=1:length(SnipData{ll})
             LLDD(dd) = length(SnipData{ll}{dd});
@@ -207,7 +251,19 @@ for ll=1:NLog
         ylabel('RMS 0.6-6KHz')
         xlabel('Time (ms)')
         colorbar
-    else
+    elseif iscell(SnipData{ll}) && strcmp(NeuralPlotMode, 'raster') % This is a neural logger and we plot the rasters
+        subplot(NLog,1, ll)
+        hold on
+        U_num = length(SnipData{ll});
+        for uu=1:U_num
+            for spike=1:length(SnipData{ll}{uu})
+                plot(SnipData{ll}{uu}(spike)*ones(2,1), uu-[0.9 0.1], 'k-', 'LineWidth',2)
+            end
+        end
+        xlabel('Time (ms)')
+        xlim([0 Duration*10^3])
+        ylabel('Units')
+    else % This is an audio logger
         subplot(NLog,1, ll)
         plot(SnipData{ll},'k-','LineWidth',2)
         title(sprintf('AudioLogger %d',LoggerID(ll)));
@@ -233,7 +289,10 @@ Fhigh = 8000;
 figure(3)
 MaxCmap = nan(NLog,1);
 for ll=1:NLog
-    if iscell(SnipData{ll})
+    if iscell(SnipData{ll})  && strcmp(NeuralPlotMode, 'power') % This is a neural logger and we plot the power of each electrode
+        % Snippets of data don't always have the exact same length due to
+        % sample rate estimation variation between channels. the following lines ensure that the
+        % snippets have the exact same length.
         LLDD = nan(length(SnipData{ll}),1);
         for dd=1:length(SnipData{ll})
             LLDD(dd) = length(SnipData{ll}{dd});
@@ -251,6 +310,18 @@ for ll=1:NLog
         ylabel('RMS 0.6-6KHz')
         xlabel('Time (ms)')
         colorbar
+    elseif iscell(SnipData{ll}) && strcmp(NeuralPlotMode, 'raster') % This is a neural logger and we plot the rasters
+        subplot(NLog,1, ll)
+        hold on
+        U_num = length(SnipData{ll});
+        for uu=1:U_num
+            for spike=1:length(SnipData{ll}{uu})
+                plot(SnipData{ll}{uu}(spike)*ones(2,1), uu-[0.9 0.1], 'k-', 'LineWidth',2)
+            end
+        end
+        xlabel('Time (ms)')
+        xlim([0 Duration*10^3])
+        ylabel('Units')
     else
         subplot(NLog,1,ll)
         [~, ~, logB, ~, ~] = spec_only_bats(SnipData{ll}, fband, EstimatedFS{ll}, dBScale, Fhigh);

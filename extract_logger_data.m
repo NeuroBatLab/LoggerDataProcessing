@@ -1,7 +1,11 @@
  function extract_logger_data(Input_folder,varargin)
-% Given the folder containing logger data from one recording
-% session, extract the event and voltage data, and save in the
-% MATLAB .mat format.
+%% Given the folder containing logger data from one recording
+% session, extract the event, voltage data, spikes arrival times and snippets
+% (if neural logger). Spike arrival times are given with the onset of the first .dat
+% being the reference (zero time). Events and voltage data are saved as matfiles (MATLAB format).
+% Spike arrival times and spike snippets are saved as matfiles, and if
+% requested in the NEURALYINX .ntt format. (note: save to .ntt only possible
+% under windows).
 % -The Neurologger event file contains time stamps from the Neurologger and
 % its transceiver, with clock drift between the two -- we correct the clock
 % drift so that all time stamps are those of the transceiver clock.
@@ -24,14 +28,18 @@
 %                       Default creates a folder in input folder named
 %                       extracted_data and saves data there.
 
+% 'BatID'           is the 5 digits chip ID of the subject. Default is
+%                       00000. This will be used to indicate the name of
+%                       the bat in the filename.
+
 % 'EventFile'       if set to 'none', no event file will be saved;
 %                       'one_file' will save all events to a single file;
 %                       'many_files' will save all events to one file and
 %                       further create one event file for each event type.
 %                       Default set to 'one_file'.
 
-% 'Voltage'         Set to True (1) to save voltage data files (default
-%                       value), False otherwise.
+% 'Voltage'         Set to True (1) to save voltage data files and spike arrival times and
+%                       snippets (default value), False otherwise.
 
 % 'OutSettings'  Set to True (1, defaut value) to save parameters
 %                       and figure showing clock difference, False otherwise.
@@ -63,7 +71,8 @@
 % 'NlxSave'             Logical. If set to 1, the function save not only
 %                           the data (spike times in microseconds and
 %                           snippets) in matfile format
-%                           (Tetrode_spikes.mat) but also generate 1 .ntt file
+%                           (e.g. Tetrode_spikes_time_T1.mat,
+%                           Tetrode_spikes_snippets_T1) but also generate 1 .ntt file
 %                           per tetrode that can be read by Neuralynx. NOTE
 %                           that the function has then to call Mat2NlxSpike
 %                           which does not seem to work under mac...
@@ -80,12 +89,12 @@
 
 % Code inspired from Wujie Zhang function extract_Nlg_data and Maimon Rose function extract_audio_data. Written by
 % Julie Elie
-last_code_update='8/20/2018, Julie Elie'; % identifies the version of the code
+last_code_update='8/28/2018, Julie Elie'; % identifies the version of the code
 
 %% Sorting input arguments
-pnames = {'OutputFolder', 'EventFile','Voltage','OutSettings','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance'};
-dflts  = {fullfile(Input_folder, 'extracted_data'),'one_file', 1, 1, 'fit', 'logfile',0, 4, 50};
-[Output_folder, EventFile,Save_voltage, Save_param_figure,CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance'};
+dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1, 'fit', 'logfile',0, 4, 50};
+[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 if strcmp(EventFile, 'one_file')
     Save_event_file=1;
 elseif strcmp(EventFile, 'many_file')
@@ -176,6 +185,25 @@ if ~strcmp(SerialNumber, F((end-length(SerialNumber)+1):end))
     error('The logger Serial Number does not correspond with that of the folder containing it, please fix!\n%s', Input_folder);
 end
 
+% get the date of recording
+Str = 'Date = ';
+IndLT = find(contains(Event_types_and_details,Str));
+for ii=1:length(IndLT)
+    IndLT2 = strfind(Event_types_and_details{IndLT(ii)},Str);
+    IndLT3 = strfind(Event_types_and_details{IndLT(ii)},';');
+    IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
+    Date_temp = Event_types_and_details{IndLT(ii)}((IndLT2+length(Str)): (IndLT3-1));
+    Date = [Date; Date_temp(7:end)  Date_temp(4:5) Date_temp(1:2)]; %#ok<AGROW> % reformat the date to yyyymmdd
+end
+if size(Date,1)>1
+    fprintf('Several dates correspond to that recording,\nplease select the correct one by indicating its index\n')
+    for ii=size(Date,1)
+        fprintf('%d. %s\n', ii, Date(ii,:));
+    end
+   IndDate = input('Your choice:');
+   Date = Date(IndDate, :);
+end
+    
 % get the total number of channels, including inactive ones
 Str = 'Number of channels=';
 IndLT = find(contains(Event_types_and_details,Str),1);
@@ -415,10 +443,14 @@ xlabel('Transceiver time (minutes) from recording start')
 %% save event files in MATLAB format
 if Save_event_file
     disp('->Saving event file')
-    Filename=fullfile(Output_folder,'EVENTS.mat');
+    Filename=fullfile(Output_folder, sprintf('%s_%s_EVENTS.mat', BatID,Date));
     clear OUT
     OUT.event_timestamps_usec=Event_timestamps_usec;
     OUT.event_types_and_details=Event_types_and_details;
+    OUT.logger_serial_number = SerialNumber;
+    OUT.logger_type = LoggerType;
+    OUT.Bat_id = BatID;
+    OUT.Date = Date;
     save(Filename,'-struct','OUT')
     disp(['Event data saved to: ' Filename])
     
@@ -428,9 +460,13 @@ if Save_event_file
         for event_type_i=1:length(Uevent_type)
             Event_local=Uevent_type{event_type_i};
             Ind_Event=ismember(Event_types,Event_local); % find all the events of this type
-            Filename=fullfile(Output_folder_str,['EVENTS_' Event_local '.mat']);
+            Filename=fullfile(Output_folder_str,sprintf('%s_%s_EVENTS_%s.mat', BatID, Date, Event_local));
             OUT.event_timestamps_usec=Event_timestamps_usec(Ind_Event);
             OUT.event_types_and_details=Event_types_and_details(Ind_Event);
+            OUT.logger_serial_number = SerialNumber;
+            OUT.logger_type = LoggerType;
+            OUT.Bat_id = BatID;
+            OUT.Date = Date;
             save(Filename,'-struct','OUT')
             disp(['Event data saved to: ' Filename])
         end
@@ -702,8 +738,12 @@ if Save_voltage
             
             
             % save the data
-            Filename=fullfile(Output_folder,['CSC' num2str(Active_channels(active_channel_i)) '.mat']); % going with the following numbering convention: the first channel is channel 0, the second channel is channel 1, etc.
+            Filename=fullfile(Output_folder, sprintf('%s_%s_CSC%d.mat', BatID, Date, Active_channels(active_channel_i))); % going with the following numbering convention: the first channel is channel 0, the second channel is channel 1, etc.
             OUTDAT = struct();
+            OUTDAT.Bat_id = BatID;
+            OUTDAT.Date = Date;
+            OUTDAT.logger_serial_number = SerialNumber;
+            OUTDAT.logger_type = LoggerType;
             OUTDAT.AD_count_int16=int16(AD_count_channeli_all_files); %data converted to signed 16-bit integers
             OUTDAT.Indices_of_first_and_last_samples=Ind_firstNlast_samples;
             OUTDAT.Estimated_channelFS_Transceiver = Estimated_channelFS_Transceiver; % Exact value of sample frequency for each file according to transceiver clock
@@ -756,7 +796,7 @@ if Save_voltage
             All_Peaks_positions = cell(length(Active_channels_local),1);
             All_Peaks_voltage = cell(length(Active_channels_local),1);
             for channel_i = 1:length(Active_channels_local)
-                FileName=fullfile(Output_folder,['CSC' num2str(Active_channels_local(channel_i)) '.mat']);
+                FileName=fullfile(Output_folder, sprintf('%s_%s_CSC%d.mat', BatID,Date, Active_channels_local(channel_i)));
                 D=load(FileName, 'Peaks_positions');
                 All_Peaks_positions{channel_i} = D.Peaks_positions;
                 clear D
@@ -807,9 +847,11 @@ if Save_voltage
         
             % Save one file for each tetrode
             fprintf(1, 'Save spike arrival times and spike snippets\n')
-            save(fullfile(Output_folder,sprintf('Tetrode_spikes_time_T%d.mat',tt)), 'Spike_arrival_times', 'Final_Peaks_positions');
-            save(fullfile(Output_folder,sprintf('Tetrode_spikes_snippets_T%d.mat',tt)),'Snippets','-v7.3');
-            fprintf(1,'Spike times and snippets of tetrode %d saved in\n%s\n and%s\n',tt,fullfile(Output_folder,'Tetrode_spikes_time.mat'),fullfile(Output_folder,'Tetrode_spikes_snippets.mat'));
+            Filename_ST = fullfile(Output_folder,sprintf('%s_%s_Tetrode_spikes_time_T%d.mat',BatID, Date,tt));
+            save(Filename_ST, 'Spike_arrival_times', 'Final_Peaks_positions', 'Date', 'BatID','SerialNumber');
+            Filename_Snip = fullfile(Output_folder,sprintf('%s_%s_Tetrode_spikes_snippets_T%d.mat',BatID, Date,tt));
+            save(Filename_Snip,'Snippets', 'Date', 'BatID','SerialNumber','-v7.3');
+            fprintf(1,'Spike times and snippets of tetrode %d saved in\n%s\n and%s\n',tt,Filename_ST, Filename_Snip);
         end
     
         if NlxSave
@@ -823,10 +865,12 @@ end
 
 %% Save the options and parameters that were used
 if Save_param_figure
-    Filename=fullfile(Output_folder,['extract_logger_data_paramters_' date '.mat']);
+    Filename=fullfile(Output_folder,sprintf('%s_%s_extract_logger_data_parameters_%s.mat', BatID, Date, date));
     fprintf('Saving run parameters to %s\n', Filename)
     date_time_of_processing=datetime; % the date and time when this code was run
     clear OUT
+    OUT.Date = Date;
+    OUT.BatID = BatID;
     OUT.Input_folder=Input_folder;
     OUT.Output_folder=Output_folder;
     OUT.save_event_file=Save_event_file;
