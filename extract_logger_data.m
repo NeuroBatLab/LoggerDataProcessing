@@ -112,13 +112,6 @@ if Save_event_file || Save_voltage || Save_param_figure % if we're saving anythi
     end
 end
 
-%% Setting arguments for spike extraction
-% filter_cutoff_frequencies=[600 6000]; % the lower and upper cut-off frequencies in Hz; the raw voltage traces will be band-pass filtered to retain only the frequency components relevant for spike detection and sorting
-% 
-% % Potential spikes are detected as the filtered voltage trace crosses above a threshold
-% automatic_spike_threshold_factor=3; % the threshold is this number times the estimated noise standard deviation, if manual_or_automatic_spike_threshold is 2; Rey et al. (2015, Brain Res Bull) recommends 3 to 5
-% absolute_or_threshold_normalized_peak_heights=1; % when comparing the heights of voltage peaks on different channels of the same electrode bundle, whether to use 1: the absolute peak heights; or 2: peak heights normalized by the spike thresholds of the respective channels; this only makes a difference if using the automatic thresholds
-
 
 %% Extract parameters specific to the Logger used from the log file
 % Read the event log file.
@@ -139,7 +132,7 @@ for cc=1:6
     Data{cc}(Continued_event_indices)=[]; % delete all the "...Continued" rows, since their "Details" have already been copied
 end
 
-% Identify Time stamps column
+% Identify all columns
 if 3 ~= find(strcmp(Header, 'Time (ms from midnight)'))
     error(' The third column does not correspond to the time from midnight\n')
 else
@@ -160,6 +153,46 @@ if 6~= find(strcmp(Header, 'Details'))
 else
     Event_types_and_details=strcat(Data{5},{'. '},Data{6}); % event type and details are concatenated together, with a period and space between them, eg. "File started" and "File index: 001" and concatenated into "File started. File index: 001"
 end
+
+% get the date of recording
+Str = 'Date = ';
+IndLT = find(contains(Event_types_and_details,Str));
+Date_all = {};
+for ii=1:length(IndLT)
+    IndLT2 = strfind(Event_types_and_details{IndLT(ii)},Str);
+    IndLT3 = strfind(Event_types_and_details{IndLT(ii)},';');
+    IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
+    Date_temp = Event_types_and_details{IndLT(ii)}((IndLT2+length(Str)): (IndLT3-1));
+    Date_all{ii} = [Date_temp(7:end)  Date_temp(4:5) Date_temp(1:2)]; %#ok<AGROW> % reformat the date to yyyymmdd
+end
+UDate = unique(Date_all);
+if length(UDate)>1
+    fprintf('Several dates correspond to that recording,\nplease select the correct one by indicating its index\n')
+    for ii=size(UDate,1)
+        fprintf('%d. %s\n', ii, UDate{ii});
+    end
+   IndDate = input('Your choice:');
+else
+    IndDate=1;
+end
+Date = UDate{IndDate};
+% Find the first and last occurence of that date
+IndDateStart = find(contains(Date_all, Date),1,'first');
+IndDateStop = find(contains(Date_all, Date),1,'last');
+
+% restrict the event data to that particular
+% date
+CD_ind = find(contains(Event_types_and_details, 'Clocks synchronized')); % Find the synchronization event that just preceded the date line as a starting point
+Start = CD_ind(find(CD_ind<IndLT(IndDateStart), 1, 'last'));
+if IndDate == length(IndLT) || IndDateStop == length(IndLT)
+    Stop = length(Event_timestamps_usec);
+else
+    Stop = IndLT(IndDateStop+1);
+end
+Event_timestamps_usec = Event_timestamps_usec(Start:Stop);
+Event_timestamps_source = Event_timestamps_source(Start:Stop);
+Event_types = Event_types(Start:Stop);
+Event_types_and_details = Event_types_and_details(Start:Stop);
 
 % Extract logger parameters
 % find the first line in the log that give setting details info
@@ -183,25 +216,6 @@ else
 end
 if ~strcmp(SerialNumber, F((end-length(SerialNumber)+1):end))
     error('The logger Serial Number does not correspond with that of the folder containing it, please fix!\n%s', Input_folder);
-end
-
-% get the date of recording
-Str = 'Date = ';
-IndLT = find(contains(Event_types_and_details,Str));
-for ii=1:length(IndLT)
-    IndLT2 = strfind(Event_types_and_details{IndLT(ii)},Str);
-    IndLT3 = strfind(Event_types_and_details{IndLT(ii)},';');
-    IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-    Date_temp = Event_types_and_details{IndLT(ii)}((IndLT2+length(Str)): (IndLT3-1));
-    Date = [Date; Date_temp(7:end)  Date_temp(4:5) Date_temp(1:2)]; %#ok<AGROW> % reformat the date to yyyymmdd
-end
-if size(Date,1)>1
-    fprintf('Several dates correspond to that recording,\nplease select the correct one by indicating its index\n')
-    for ii=size(Date,1)
-        fprintf('%d. %s\n', ii, Date(ii,:));
-    end
-   IndDate = input('Your choice:');
-   Date = Date(IndDate, :);
 end
     
 % get the total number of channels, including inactive ones
@@ -884,10 +898,12 @@ if Save_param_figure
     OUT.AD_count_for_zero_voltage=ADC_zero_voltage;
     OUT.AD_count_to_uV_factor=ADC2uV_resolution;
     OUT.FS=FS;
-    OUT.samples_per_channel_per_file=nan(Num_channels,1);
-    OUT.samples_per_channel_per_file(Active_channels+1) = Samples_per_channel_per_file;
-    OUT.ADC_data_format=ADC_data_format;
-    OUT.ADC_unwritten_data_value=ADC_unwritten_data;
+    if Save_voltage
+        OUT.samples_per_channel_per_file=nan(Num_channels,1);
+        OUT.samples_per_channel_per_file(Active_channels+1) = Samples_per_channel_per_file;
+        OUT.ADC_data_format=ADC_data_format;
+        OUT.ADC_unwritten_data_value=ADC_unwritten_data;
+    end
     OUT.date_time_of_processing=date_time_of_processing;
     OUT.last_code_update=last_code_update; %#ok<STRNU>
     save(Filename,'-struct','OUT')
