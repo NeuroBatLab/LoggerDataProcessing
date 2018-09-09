@@ -44,6 +44,9 @@
 % 'OutSettings'  Set to True (1, defaut value) to save parameters
 %                       and figure showing clock difference, False otherwise.
 
+% 'Diary'           Set to True (1, default value) to save all command
+%                       window output to a text file, False otherwise.
+
 % 'CD_Estimation'   Method used to estimate unreported clock differences
 %                             between the transceiver and the logger.
 %                             'fit' is performing a linear fit on all the
@@ -89,12 +92,13 @@
 
 % Code inspired from Wujie Zhang function extract_Nlg_data and Maimon Rose function extract_audio_data. Written by
 % Julie Elie
-last_code_update='8/28/2018, Julie Elie'; % identifies the version of the code
+last_code_update='9/09/2018, Julie Elie'; % identifies the version of the code
 
 %% Sorting input arguments
-pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance'};
-dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1, 'fit', 'logfile',0, 4, 50};
-[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance'};
+dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50};
+[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+
 if strcmp(EventFile, 'one_file')
     Save_event_file=1;
 elseif strcmp(EventFile, 'many_file')
@@ -105,13 +109,19 @@ else
     Save_event_file = input('WARNING: undefined input for EventFile.\n choose from the following:\n0: no event file saved\n1: save one event file containing all events\n2: save one event file containing all events and one event file for each event type\n');
 end
 
-disp(['Processing the data in "' Input_folder '"...'])
 if Save_event_file || Save_voltage || Save_param_figure % if we're saving anything
     if ~exist(Output_folder,'dir') % make the output folder if it doesn't already exist
         mkdir(Output_folder);
     end
 end
 
+if Diary
+    Diary_filename = fullfile(Output_folder, sprintf('%s_%s_Diary_%s.mat', BatID, datetime('now'))); %#ok<NASGU>
+    diary Diary_filename
+    diary on
+end
+
+disp(['Processing the data in "' Input_folder '"...'])
 
 %% Extract parameters specific to the Logger used from the log file
 % Read the event log file.
@@ -908,4 +918,11 @@ if Save_param_figure
     OUT.last_code_update=last_code_update; %#ok<STRNU>
     save(Filename,'-struct','OUT')
 end
+if Diary
+    diary off
+end
+ end
+
+ function parsave(Filename, Struct) %#ok<INUSD>
+save(Filename,'-struct','Struct')
 end
