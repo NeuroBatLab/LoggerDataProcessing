@@ -713,7 +713,7 @@ if Save_voltage
         if length(unique(Estimated_channelFS_Transceiver))>1
             disp('***** WARNING: The sample frequency in transceiver time was not constant******')
             disp('see plot of sample frequency for more details')
-            figure()
+            Figure2=figure();
             title('variations of sample frequency and period along time')
             subplot(1,2,1)
             plot(Estimated_channelFS_Transceiver-nanmean(Estimated_channelFS_Transceiver))
@@ -791,6 +791,8 @@ if Save_voltage
         fprintf('Channel %d/%d: Data from %d out of %d .DAT files in %s were processed and saved.\n',active_channel_i,Nactive_channels,Nfiles-sum(Missing_files), Nfiles, Input_folder);
         if Save_param_figure
             saveas(Figure1,fullfile(Output_folder,sprintf('CD_correction%d.fig',Active_channels(active_channel_i))))
+            saveas(Figure2,fullfile(Output_folder,sprintf('SampleFrequency%d.fig',Active_channels(active_channel_i))))
+            close all
         end
 %         clear OUTDAT AD_count_channeli_all_files Peaks_positions Filtered_voltage_trace
     end
