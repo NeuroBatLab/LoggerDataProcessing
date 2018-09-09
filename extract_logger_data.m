@@ -908,4 +908,8 @@ if Save_param_figure
     OUT.last_code_update=last_code_update; %#ok<STRNU>
     save(Filename,'-struct','OUT')
 end
+ end
+
+ function parsave(Filename, Struct)
+save(Filename,'-struct','Struct')
 end
