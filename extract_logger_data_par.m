@@ -116,8 +116,9 @@ if Save_event_file || Save_voltage || Save_param_figure % if we're saving anythi
 end
 
 if Diary
-    Diary_filename = fullfile(Output_folder, sprintf('%s_%s_Diary_%s.mat', BatID, datetime('now'))); %#ok<NASGU>
-    diary Diary_filename
+    Now=clock;
+    Diary_filename = fullfile(Output_folder, sprintf('%s_Diary_%s_%d%d%d.txt', BatID, date,Now(4),Now(5),round(Now(6)))); %#ok<NASGU>
+    diary(Diary_filename)
     diary on
 end
 

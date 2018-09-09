@@ -118,7 +118,7 @@ end
 if Diary
     Now=clock;
     Diary_filename = fullfile(Output_folder, sprintf('%s_Diary_%s_%d%d%d.txt', BatID, date,Now(4),Now(5),round(Now(6)))); %#ok<NASGU>
-    diary Diary_filename
+    diary(Diary_filename)
     diary on
 end
 
