@@ -793,7 +793,8 @@ if Save_voltage
         if Save_param_figure
             saveas(Figure1,fullfile(Output_folder,sprintf('CD_correction%d.fig',Active_channels(active_channel_i))))
             saveas(Figure2,fullfile(Output_folder,sprintf('SampleFrequency%d.fig',Active_channels(active_channel_i))))
-            close all
+            close(Figure2)
+            clear Figure2
         end
         clear OUTDAT AD_count_channeli_all_files Peaks_positions Filtered_voltage_trace
     end
@@ -920,6 +921,7 @@ if Save_param_figure
     OUT.date_time_of_processing=date_time_of_processing;
     OUT.last_code_update=last_code_update; %#ok<STRNU>
     save(Filename,'-struct','OUT')
+    close all
 end
 if Diary
     diary off
