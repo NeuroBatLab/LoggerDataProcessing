@@ -16,7 +16,7 @@ end
 
 for channel_i = 1:length(Channels)
     FileDir = dir(Data_folder,sprintf('*CSC%d.mat', num2str(Channels(channel_i))));
-    Filename=fullfile(FileDir.folder,FileDir.name);
+    Filename=fullfile(Data_folder,sprintf('*CSC%d.mat', num2str(Channels(channel_i))));
     % If this is the first channel of the bundle
     % First delete the peaks that would lead to spike waveform
     % windows that extend beyond the recording time
