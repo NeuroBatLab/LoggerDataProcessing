@@ -13,13 +13,13 @@ Input_serverfolder=fullfile(Server_path, Date);
 Input_localfolder = fullfile(Local_path, Date);
 
 %% Bring data back on the computer
-mkdir(Input_localfolder)
-[s,m,e]=copyfile(Input_serverfolder, Input_localfolder);
-if ~s
-    m
-    e
-    error('File transfer did not occur correctly for %s\n', Date);
-end
+% mkdir(Input_localfolder)
+% [s,m,e]=copyfile(Input_serverfolder, Input_localfolder, 'f');
+% if ~s
+%     m
+%     e
+%     error('File transfer did not occur correctly for %s\n', Date);
+% end
 
 %% Run
 Logger_dirs = dir(fullfile(Input_localfolder, 'logger*'));
