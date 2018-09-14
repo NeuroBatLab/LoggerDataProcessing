@@ -190,6 +190,7 @@ Date = UDate{IndDate};
 % Find the first and last occurence of that date
 IndDateStart = find(contains(Date_all, Date),1,'first');
 IndDateStop = find(contains(Date_all, Date),1,'last');
+    
 
 % restrict the event data to that particular
 % date
@@ -516,10 +517,10 @@ if Save_voltage
     
     % Find the indices among these data files of those that where stopped before the
     % end of the file
-    Ind_stop_recording=find(ismember(Event_types_and_details,'Mode change. Stopped recording'));
+    Ind_stop_recording=[find(ismember(Event_types_and_details,'Mode change. Stopped recording')); find(ismember(Event_types_and_details,'Startup'))];
     Ind_partial_files=nan(length(Ind_stop_recording),1);
     for stop_i=1:length(Ind_stop_recording) % for each of the "Stopped recording" events
-        Ind_partial_files(stop_i) = find((Ind_file_start<Ind_stop_recording(stop_i)),1, 'last'); % the last "File started" event before the "Stopped recording" event
+        Ind_partial_files(stop_i) = find((Ind_file_start<Ind_stop_recording(stop_i)),1, 'last'); % the last "File started" event before the "Stopped recording" or "Startup" event
     end
     Ind_partial_files=unique([Ind_partial_files; length(Ind_file_start)]); % add in the last .DAT file, in case the battery runs out or the logger is turned off before the "stop recording" button is pressed, this last file is not followed by a "Stopped recording" event
     
