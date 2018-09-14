@@ -365,16 +365,21 @@ for CD_i=1:length(Ind_CD)
     CD_logger_stamps(CD_i)=Event_timestamps_usec(Ind_CD(CD_i)); % the time of the logger clock when the clock difference was reported
 end
 
+% Get rid of outsider: obvious error of Deuteron in the Clock drift report
+Outsider_diff = find(abs(diff(CD_sec))> (nanmean(abs(diff(CD_sec))) + 4*nanstd(abs(diff(CD_sec))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
+Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
+CD_sec_Outsider = CD_sec(Outsider_local); % value of clock drift reports that are discarded
+CD_sec(Outsider_local)= NaN; % replace that clock drift report by NaN in the whole data section
+Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
+
 % Work between 2 clock synchronization events. It is assumed that the drift
 % is mostly linear between these synchronization events.
 Ind_Start = find(contains(Event_types_and_details,'Started recording'),1);
 Ind_Sync = sort([Ind_Start; find(contains(Event_types_and_details,'Clocks synchronized')); length(Event_types_and_details)]); % synchronization evenst, and the first and last event
 Ind_Sync = Ind_Sync(Ind_Sync>= Ind_Start); 
 Ind_Logger_times=find(contains(Event_timestamps_source,'Logger')); % events originally logged with logger time stamps
-Estimated_CD=nan(length(Ind_Logger_times),1); % estimated clock difference for the logger time stamps identified by Ind_Logger_times
-CD_sec_Outsider = []; % value of clock drift reports that are discarded
-Outsider = []; % Indices of clock drift reports that are discarted
-
+Estimated_CD=nan(length(Ind_Logger_times),1); % estimated clock difference for the logger time stamps identified by Ind_Logger_times 
+ 
 for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutive "Clocks synchronized" events after we started recording
     % Identify the events that were logged in logger time for that data
     % section
@@ -391,7 +396,7 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     end
     CD_sec_local = CD_sec(Ind_CD_local);
  
-    % Get rid of outsider: obvious error of Deuteron in the Clock drift report
+    % Get rid of outsider again: obvious error of Deuteron in the Clock drift report
     Outsider_diff = find(abs(diff(CD_sec_local))> (nanmean(abs(diff(CD_sec_local))) + 4*nanstd(abs(diff(CD_sec_local))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
     Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
     CD_sec_Outsider = [CD_sec_Outsider; CD_sec_local(Outsider_local)]; %#ok<AGROW>
@@ -517,7 +522,7 @@ if Save_voltage
     
     % Find the indices among these data files of those that where stopped before the
     % end of the file
-    Ind_stop_recording=[find(ismember(Event_types_and_details,'Mode change. Stopped recording')); find(ismember(Event_types_and_details,'Startup'))];
+    Ind_stop_recording=[find(ismember(Event_types_and_details,'Mode change. Stopped recording')); find(contains(Event_types_and_details,'Startup'))];
     Ind_partial_files=nan(length(Ind_stop_recording),1);
     for stop_i=1:length(Ind_stop_recording) % for each of the "Stopped recording" events
         Ind_partial_files(stop_i) = find((Ind_file_start<Ind_stop_recording(stop_i)),1, 'last'); % the last "File started" event before the "Stopped recording" or "Startup" event
