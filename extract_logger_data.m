@@ -753,9 +753,13 @@ if Save_voltage
             if sum(isnan(AD_count_channeli_all_files))~= (length(AD_count_channeli_all_files)-Ind_firstNlast_samples(end,2))
                 error('Number of Nan values in AD_count_all_channeli_all_files is %d  when it is expected to be %d\n', sum(isnan(AD_count_channeli_all_files)), (length(AD_count_channeli_all_files)-Ind_firstNlast_samples(end,2)));
             end
-            FirstNan(active_channel_i) = FirstNaN_local;
+            if isempty(FirstNaN_local)
+               FirstNan(active_channel_i) = length(AD_count_channeli_all_files)+1;
+            else
+               FirstNan(active_channel_i) = FirstNaN_local; 
+            end
             
-            AD_count_channeli_all_files(FirstNan(active_channel_i):end)=[]; % delete the unwritten samples
+            AD_count_channeli_all_files = AD_count_channeli_all_files(1:FirstNan(active_channel_i)-1); % delete the unwritten samples
             
             % If Neural data, extract position of potential spike
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat') %#ok<PFBNS>
