@@ -29,7 +29,13 @@ file_idxs = nan(1,n_requested_timestamps);
 requested_sample_idxs = nan(1,n_requested_timestamps);
 
 for k = 1:n_requested_timestamps
-    file_idxs(k) = find(requested_timestamps_usec(k)>timestamps_of_first_samples_usec,1,'last');
+    current_file_idx = find(requested_timestamps_usec(k)>timestamps_of_first_samples_usec,1,'last');
+    if isempty(current_file_idx)
+        requested_sample_idxs = [];
+        disp('WARNING: requested timestamp out of range of logger time')
+        return
+    end
+    file_idxs(k) = current_file_idx;
     usec_from_first_sample_in_file = (requested_timestamps_usec(k) - timestamps_of_first_samples_usec(file_idxs(k)));
     requested_sample_idxs(k) = indices_of_first_samples(file_idxs(k)) + round(usec_from_first_sample_in_file /sampling_period_usec);
 end
