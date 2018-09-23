@@ -179,7 +179,7 @@ end
 UDate = unique(Date_all);
 if length(UDate)>1
     fprintf('Several dates correspond to that recording,\nplease select the correct one by indicating its index\n')
-    for ii=size(UDate,1)
+    for ii=1:length(UDate)
         fprintf('%d. %s\n', ii, UDate{ii});
     end
    IndDate = input('Your choice:');
