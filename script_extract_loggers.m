@@ -1,7 +1,7 @@
 %% Inputs
-Date = '07102018';
+Date = '07092018';
 % BatIDs = {'65430' '71300' '71335' '71132' '59899' '65430'};
-BatIDs = {'59899' '65430' '71300' '71213' '71332' '65430'};
+BatIDs = {'59899' '65430' '71300' '71335' '71137' '65430'};
 % LoggerNum = [5 6 7 9 10 16];
 LoggerNum = [10 5 6 7 9 16];
 
@@ -13,14 +13,14 @@ Input_serverfolder=fullfile(Server_path, Date);
 Input_localfolder = fullfile(Local_path, Date);
 
 % Bring data back on the computer
-fprintf(1,'Transferring data from the server %s\n on the local computer %s\n', Input_serverfolder, Input_localfolder);
-mkdir(Input_localfolder)
-[s,m,e]=copyfile(Input_serverfolder, Input_localfolder, 'f');
-if ~s
-    m
-    e
-    error('File transfer did not occur correctly for %s\n', Date);
-end
+% fprintf(1,'Transferring data from the server %s\n on the local computer %s\n', Input_serverfolder, Input_localfolder);
+% mkdir(Input_localfolder)
+% [s,m,e]=copyfile(Input_serverfolder, Input_localfolder, 'f');
+% if ~s
+%     m
+%     e
+%     error('File transfer did not occur correctly for %s\n', Date);
+% end
 
 %% Run the extraction and transfer data back on the server
 Logger_dirs = dir(fullfile(Input_localfolder, 'logger*'));

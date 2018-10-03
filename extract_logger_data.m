@@ -939,5 +939,10 @@ end
  end
 
  function parsave(Filename, Struct) %#ok<INUSD>
-save(Filename,'-struct','Struct')
+ S = whos('Struct');
+ if S.bytes>2*10^9
+    save(Filename,'-struct','Struct','-v7.3')
+ else
+     save(Filename,'-struct','Struct')
+ end
 end
