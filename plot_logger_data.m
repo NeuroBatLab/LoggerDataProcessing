@@ -27,7 +27,7 @@ end
 InputLoggerFolder = fullfile(InputFolder, 'Loggers');
 LoggerFolders  = dir(fullfile(InputLoggerFolder, '*ogger*'));
 if isempty(LoggerFolders)
-    InputLoggerFolder = fullfile(InputFolder, 'audiologger');
+    InputLoggerFolder = fullfile(InputFolder, 'audiologgers');
     LoggerFolders  = dir(fullfile(InputLoggerFolder, '*ogger*'));
 end
 if isempty(LoggerFolders)
