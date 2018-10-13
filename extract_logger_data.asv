@@ -179,7 +179,7 @@ end
 UDate = unique(Date_all);
 if length(UDate)>1
     fprintf('Several dates correspond to that recording,\nplease select the correct one by indicating its index\n')
-    for ii=size(UDate,1)
+    for ii=1:length(UDate)
         fprintf('%d. %s\n', ii, UDate{ii});
     end
    IndDate = input('Your choice:');
@@ -366,11 +366,11 @@ for CD_i=1:length(Ind_CD)
 end
 
 % Get rid of outsider: obvious error of Deuteron in the Clock drift report
-    Outsider_diff = find(abs(diff(CD_sec))> (nanmean(abs(diff(CD_sec))) + 4*nanstd(abs(diff(CD_sec))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
-    Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
-    CD_sec_Outsider = CD_sec(Outsider_local); % value of clock drift reports that are discarded
-    CD_sec(Outsider_local)= NaN; % replace that clock drift report by NaN in the whole data section
-    Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
+Outsider_diff = find(abs(diff(CD_sec))> (nanmean(abs(diff(CD_sec))) + 4*nanstd(abs(diff(CD_sec))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
+Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
+CD_sec_Outsider = CD_sec(Outsider_local); % value of clock drift reports that are discarded
+CD_sec(Outsider_local)= NaN; % replace that clock drift report by NaN in the whole data section
+Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
 
 % Work between 2 clock synchronization events. It is assumed that the drift
 % is mostly linear between these synchronization events.
@@ -379,7 +379,7 @@ Ind_Sync = sort([Ind_Start; find(contains(Event_types_and_details,'Clocks synchr
 Ind_Sync = Ind_Sync(Ind_Sync>= Ind_Start); 
 Ind_Logger_times=find(contains(Event_timestamps_source,'Logger')); % events originally logged with logger time stamps
 Estimated_CD=nan(length(Ind_Logger_times),1); % estimated clock difference for the logger time stamps identified by Ind_Logger_times 
-Outsider = []; 
+ 
 for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutive "Clocks synchronized" events after we started recording
     % Identify the events that were logged in logger time for that data
     % section
@@ -396,7 +396,7 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     end
     CD_sec_local = CD_sec(Ind_CD_local);
  
-    % Get rid of outsider: obvious error of Deuteron in the Clock drift report
+    % Get rid of outsider again: obvious error of Deuteron in the Clock drift report
     Outsider_diff = find(abs(diff(CD_sec_local))> (nanmean(abs(diff(CD_sec_local))) + 4*nanstd(abs(diff(CD_sec_local))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
     Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
     CD_sec_Outsider = [CD_sec_Outsider; CD_sec_local(Outsider_local)]; %#ok<AGROW>
@@ -753,9 +753,13 @@ if Save_voltage
             if sum(isnan(AD_count_channeli_all_files))~= (length(AD_count_channeli_all_files)-Ind_firstNlast_samples(end,2))
                 error('Number of Nan values in AD_count_all_channeli_all_files is %d  when it is expected to be %d\n', sum(isnan(AD_count_channeli_all_files)), (length(AD_count_channeli_all_files)-Ind_firstNlast_samples(end,2)));
             end
-            FirstNan(active_channel_i) = FirstNaN_local;
+            if isempty(FirstNaN_local)
+               FirstNan(active_channel_i) = length(AD_count_channeli_all_files)+1;
+            else
+               FirstNan(active_channel_i) = FirstNaN_local; 
+            end
             
-            AD_count_channeli_all_files(FirstNan(active_channel_i):end)=[]; % delete the unwritten samples
+            AD_count_channeli_all_files = AD_count_channeli_all_files(1:FirstNan(active_channel_i)-1); % delete the unwritten samples
             
             % If Neural data, extract position of potential spike
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat') %#ok<PFBNS>
@@ -935,5 +939,10 @@ end
  end
 
  function parsave(Filename, Struct) %#ok<INUSD>
-save(Filename,'-struct','Struct')
+ S = whos('Struct');
+ if S.bytes>2*10^9
+    save(Filename,'-struct','Struct','-v7.3')
+ else
+     save(Filename,'-struct','Struct')
+ end
 end
