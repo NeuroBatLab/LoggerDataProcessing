@@ -52,7 +52,7 @@ if nargin<2
     StartFile = nan(NLog,1);
     for ll=1:NLog
         Ind = strfind(LoggerFolders(ll).name,'r');
-        DataFolder = fullfile(InputLoggerFolder, sprintf('%s%d',LoggerFolders(ll).name(1:(Ind-1)),LoggerID(ll)), 'extracted_data');
+        DataFolder = fullfile(InputLoggerFolder, sprintf('%s%d',LoggerFolders(ll).name(1:(Ind)),LoggerID(ll)), 'extracted_data');
         CSCFiles = dir(fullfile(DataFolder, '*CSC*.mat'));
         Data = load(CSCFiles(1).name); % Just load one of the data file (one file per channel)
         StartFile(ll) = Data.Timestamps_first_samples_usec(1); % extract the time stamp (transceiver time) of the first sample of the first recorded file.
@@ -73,7 +73,7 @@ fprintf(1, '*** Gather data from each logger ***\n')
 for ll=1:NLog
         fprintf(1, '%d/%d: Logger%d\n', ll,NLog, LoggerID(ll))
         Ind = strfind(LoggerFolders(ll).name,'r');
-        DataFolder = fullfile(InputLoggerFolder, sprintf('%s%d',LoggerFolders(ll).name(1:(Ind-1)),LoggerID(ll)), 'extracted_data');
+        DataFolder = fullfile(InputLoggerFolder, sprintf('%s%d',LoggerFolders(ll).name(1:(Ind)),LoggerID(ll)), 'extracted_data');
         CSCFiles = dir(fullfile(DataFolder, '*CSC*.mat'));
         NChannels = length(CSCFiles);
         % Identify the onset time of the first TTL pulse (That will be
