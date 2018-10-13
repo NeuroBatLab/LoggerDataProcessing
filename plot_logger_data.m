@@ -39,7 +39,7 @@ end
      NLog = length(LoggerFolders);    
      LoggerID=nan(NLog,1);
      for ll=1:NLog
-         Ind = strcmp('r', LoggerFolders(ll).name);
+         Ind = strfind('r', LoggerFolders(ll).name);
          LoggerID(NLog) = str2double(LoggerFolders(ll).name(Ind+1:end));
      end
 else
@@ -51,7 +51,7 @@ if nargin<2
     % last, that will be the start time point for plotting
     StartFile = nan(NLog,1);
     for ll=1:NLog
-        Ind = strcmp('r', LoggerFolders(ll).name);
+        Ind = strfind('r', LoggerFolders(ll).name);
         DataFolder = fullfile(InputLoggerFolder, sprintf('%s%d',LoggerFolders(ll).name(1:(Ind-1)),LoggerID(ll)), 'extracted_data');
         CSCFiles = dir(fullfile(DataFolder, '*CSC*.mat'));
         Data = load(CSCFiles(1).name); % Just load one of the data file (one file per channel)
@@ -72,6 +72,7 @@ EstimatedFS = cell(NLog,1);
 fprintf(1, '*** Gather data from each logger ***\n')
 for ll=1:NLog
         fprintf(1, '%d/%d: Logger%d\n', ll,NLog, LoggerID(ll))
+        Ind = strfind('r', LoggerFolders(ll).name);
         DataFolder = fullfile(InputLoggerFolder, sprintf('%s%d',LoggerFolders(ll).name(1:(Ind-1)),LoggerID(ll)), 'extracted_data');
         CSCFiles = dir(fullfile(DataFolder, '*CSC*.mat'));
         NChannels = length(CSCFiles);
