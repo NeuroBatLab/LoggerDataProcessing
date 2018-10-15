@@ -823,7 +823,7 @@ if Save_voltage
         fprintf(1, '-> Neural logger: Extracting spike arrival times and spike snippets\n')
         % Loop through tetrodes and first combine, for each tetrode,
         % the potential spike positions detected on each electrode 
-        fprintf(1, 'Combining potential spikes beloging to the same tetrode\n')
+        fprintf(1, 'Combining potential spikes belonging to the same tetrode\n')
         Num_tetrodes = Num_channels/Num_EperBundle;
         Final_Peaks_positions = cell(Num_tetrodes,1);
         Num_peaks = nan(Num_tetrodes,1);
