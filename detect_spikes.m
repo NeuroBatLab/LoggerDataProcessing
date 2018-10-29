@@ -49,24 +49,35 @@ dflts  = {'auto', 40,3, [600 6000],[],0};
 [SpikeThreshMeth, ManualSpikeThresh, AutoSpikeThreshFactor, BandPassFilter,  MissingFiles, FigCheck] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 %% Bandpass filter the input raw voltage
+[b,a]=butter(6,BandPassFilter/(FS/2),'bandpass'); % a 12th order Butterworth band-pass filter; the second input argument is normalized cut-off frequency (ie. normalized to the Nyquist frequency, which is half the sampling frequency, as required by MATLAB)
+
 % Bandpass filtering is applied to continous chunks of recordings.
 Chuncks = [1 length(Voltage_Trace)];
-
 if ~isempty(MissingFiles)
     Ind_firstNlast_samples_MissingFiles = IndFirstNLastSamples(MissingFiles,:);
     Chuncks = [1;Ind_firstNlast_samples_MissingFiles(1:(end-1),2)+1 Ind_firstNlast_samples_MissingFiles(:,1)];
 end
-[b,a]=butter(6,BandPassFilter/(FS/2),'bandpass'); % a 12th order Butterworth band-pass filter; the second input argument is normalized cut-off frequency (ie. normalized to the Nyquist frequency, which is half the sampling frequency, as required by MATLAB)
-
+% Identify NaNs chuncks within the continuous recording
 for cc=1:size(Chuncks,1)
-    Voltage_Trace(Chuncks(cc,1):Chuncks(cc,2))=filtfilt(b,a,Voltage_Trace(Chuncks(cc,1):Chuncks(cc,2))); % band-pass filter the voltage traces            
+    Local_Voltage = Voltage_Trace(Chuncks(cc,1):Chuncks(cc,2));
+    NanInd = find(isnan(Local_Voltage));
+    F1stNanInd = [1 find(diff(NanInd)>1)+1];
+    LastNanInd = [find(diff(NanInd)>1) length(NanInd)];
+    SmallChuncks = horzcat([Chuncks(cc,1) ; Chuncks(cc,1) + NanInd(LastNanInd)'], [Chuncks(cc,1)-1 + NanInd(F1stNanInd)'-1 ; Chuncks(cc,2)]);
+    for ccin=1:size(SmallChuncks,1)
+        if sum(isnan(Voltage_Trace(SmallChuncks(ccin,1):SmallChuncks(ccin,2))))
+            error('Error of indexaion of chuncks of data without NaNs in detect_spikes.m, check the code!\n')
+        else
+            Voltage_Trace(SmallChuncks(ccin,1):SmallChuncks(ccin,2))=filtfilt(b,a,Voltage_Trace(SmallChuncks(ccin,1):SmallChuncks(ccin,2))); % band-pass filter the voltage traces
+        end
+    end
 end
 
 %% Detect spikes as threshold-crossing by the filtered voltage traces
 if strcmp(SpikeThreshMeth, 'manual')
     Spike_threshold=ManualSpikeThresh;
 elseif strcmp(SpikeThreshMeth, 'auto')
-    Estimate_of_voltage_noise_std=(quantile(Voltage_Trace,0.75,2)-median(Voltage_Trace,2))/icdf('Normal',0.75,0,1);
+    Estimate_of_voltage_noise_std=(quantile(Voltage_Trace,0.75,2)-nanmedian(Voltage_Trace,2))/icdf('Normal',0.75,0,1);
     Spike_threshold=AutoSpikeThreshFactor*Estimate_of_voltage_noise_std;
 end
  
@@ -85,7 +96,7 @@ if FigCheck
         ylabel('Channel voltage (uV)')
         xlim(times_to_plot([1 end]))
         xlabel('Time (ms)')
-        legend('Filtered voltage trace','Spike threshold')
+        legend('Filtered voltage trace','Spike threshold', 'Location','northoutside','Orientation','horizontal')
         hold off
         stop_plotting=input('Enter anything to stop plotting: ','s');
         if any(stop_plotting)
@@ -100,15 +111,21 @@ if FigCheck
     for window_i=1:100 % plot some windows sequentially
         clf
         MinSamp = (window_i-1)*num_samples_to_plot+1;
-        MaxSamp = (window_i-1)*num_samples_to_plot+window_i*num_samples_to_plot;
+        MaxSamp = (window_i)*num_samples_to_plot;
         samples_to_plot=MinSamp:MaxSamp;
         plot(samples_to_plot,Voltage_Trace(samples_to_plot), 'k-', 'LineWidth',1)
         hold on
         LocalPeaks_Ind = find((Sample_indices_of_peaks>=MinSamp) .* (Sample_indices_of_peaks<=MaxSamp));
-        plot(Sample_indices_of_peaks(LocalPeaks_Ind),Peak_Values(LocalPeaks_Ind), 'go', 'MarkerSize',10)
-        hold on
+        if ~isempty(LocalPeaks_Ind)
+            plot(Sample_indices_of_peaks(LocalPeaks_Ind),Peak_Values(LocalPeaks_Ind), 'go', 'MarkerSize',10)
+            hold on
+        end
         plot(samples_to_plot,Spike_threshold*ones(length(samples_to_plot),1), 'r-')
-        legend('Filtered voltage trace', 'Peaks detected',  'Spike threshold')
+        if ~isempty(LocalPeaks_Ind)
+            legend('Filtered voltage trace', 'Peaks detected',  'Spike threshold', 'Location','northoutside','Orientation','horizontal')
+        else
+            legend('Filtered voltage trace',  'Spike threshold', 'Location','northoutside','Orientation','horizontal')
+        end
         hold off
         xlabel('Samples')
         ylabel('Voltage (uV)')

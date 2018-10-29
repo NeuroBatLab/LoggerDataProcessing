@@ -90,14 +90,17 @@
 %                           under which these events are considered as
 %                           noise. Default = 50 us.
 
+% 'CheckSpike'      switch to plot detected spike at each step fo the
+%                           detection and sorting process. Default = 0;
+
 % Code inspired from Wujie Zhang function extract_Nlg_data and Maimon Rose function extract_audio_data. Written by
 % Julie Elie
 last_code_update='9/09/2018, Julie Elie'; % identifies the version of the code
 
 %% Sorting input arguments
-pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance'};
-dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50};
-[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike'};
+dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50,0};
+[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 if strcmp(EventFile, 'one_file')
     Save_event_file=1;
@@ -451,7 +454,7 @@ Event_timestamps_usec(Ind_Logger_times)=Event_timestamps_usec(Ind_Logger_times) 
 CD_transceiver_stamps=CD_logger_stamps-CD_sec*1e6;
 
 % plot the result of clock difference correction to check for mistakes
-Figure1 = figure();
+Figure1 = figure(1);
 hold on
 legend('Location','best', 'AutoUpdate', 'on')
 plot((CD_transceiver_stamps-LoggerTime_ref)/(1e6*60), CD_sec*1e3,'r+', 'DisplayName','Recorded clock differences') % transceiver stamps in min at clock difference reports vs. the reported clock differences that were used for estimation
@@ -532,6 +535,11 @@ if Save_voltage
     % Initialize some check variables
     FirstNan = nan(Nactive_channels,1);
     Samples_per_channel_per_file = nan(Nactive_channels,1);
+    if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
+        DataDeletionOnsetOffset_usec = cell(length(Nactive_channels),1);
+        DataDeletionOnsetOffset_sample = cell(length(Nactive_channels),1);
+    end
+    
     
     % Loop through channels then through files and extract data
     for active_channel_i=1:Nactive_channels
@@ -664,6 +672,9 @@ if Save_voltage
             if File_i<Nfiles && ~any(File_i==Ind_partial_files)
                 FS_local_Trans = Estimated_channelFS_Transceiver(File_i);
                 FS_local_Log = Estimated_channelFS_Logger(File_i);
+            elseif File_i==1 && any(File_i==Ind_partial_files)
+                FS_local_Trans = FS;
+                FS_local_Log = FS;
             else
                 FS_local_Trans = Estimated_channelFS_Transceiver(File_i-1);
                 FS_local_Log = Estimated_channelFS_Logger(File_i-1);
@@ -720,7 +731,7 @@ if Save_voltage
         if length(unique(Estimated_channelFS_Transceiver))>1
             disp('***** WARNING: The sample frequency in transceiver time was not constant******')
             disp('see plot of sample frequency for more details')
-            Figure2=figure();
+            Figure2=figure(2);
             title('variations of sample frequency and period along time')
             subplot(1,2,1)
             plot(Estimated_channelFS_Transceiver-nanmean(Estimated_channelFS_Transceiver))
@@ -761,9 +772,105 @@ if Save_voltage
             
             AD_count_channeli_all_files = AD_count_channeli_all_files(1:FirstNan(active_channel_i)-1); % delete the unwritten samples
             
-            % If Neural data, extract position of potential spike
-            if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat') %#ok<PFBNS>
+            % If neural data, supress data where artifacts are detected (RF
+            % signal emission by the logger causing pulses in the signal)
+            if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
+                ThreshFactor = [35 25];
+                FreeTextInd = find(contains(Event_types_and_details, 'Free text'));
+                FreeTextTime = Event_timestamps_usec(FreeTextInd);
+                FreeTextSamples=get_voltage_samples_for_Nlg_timestamps(FreeTextTime,Ind_firstNlast_samples(:,1),Timestamps_first_samples_usec,10^6/nanmean(Estimated_channelFS_Transceiver));
+                DataDeletionOnsetOffset_usec{active_channel_i} = nan(length(FreeTextSamples),2);
+                DataDeletionOnsetOffset_sample{active_channel_i} = nan(length(FreeTextSamples),2);
+                % calculate the average voltage in the preceding 5ms and
+                % find all points in the next 5ms that are 10 times the SD away from the
+                % mean, and replace them by NaNs
                 Voltage_Trace = double(int16(AD_count_channeli_all_files))*ADC2uV_resolution;
+                F20=figure(20);
+                for tt=1:length(FreeTextSamples)
+                    Local_Voltage = Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3):round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3)));
+                    DiffLocal_Voltage = abs(diff(Local_Voltage));
+                    MeanBefore = mean(DiffLocal_Voltage(1:round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3)));
+                    SDBefore = std(DiffLocal_Voltage(1:round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3)));
+                    for ThreshFactorI = 1:length(ThreshFactor) % Test different threshold until we find the pulse but don't go lower than 10X
+                        Thresh = (MeanBefore+ThreshFactor(ThreshFactorI)*SDBefore);
+                        PulsePoints = find(DiffLocal_Voltage((round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3)):end)>Thresh);
+                        if (length(PulsePoints)>=2) && (PulsePoints(end)-PulsePoints(1))>30
+                            break
+                        end
+                    end
+                    plot(Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3):round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3))))
+                    hold on
+                    plot(DiffLocal_Voltage, 'k--')
+                    hold on
+                    plot([1 length(DiffLocal_Voltage)], [Thresh Thresh], 'r:')
+                    if ~isempty(PulsePoints)
+                        Onset = PulsePoints(1) -10;
+                        Offset = PulsePoints(end) + 10;
+                        Voltage_Trace(FreeTextSamples(tt) + (Onset : Offset)) = nan(length(Onset : Offset),1);
+                        %                     AD_count_channeli_all_files(FreeTextSamples(tt) +
+                        %                     (Onset : Offset)) = nan(length(Onset : Offset),1);
+                        %                     Replacing the samples by NaN in the raw data does not
+                        %                     work because as soon as it is transfered back to
+                        %                     doubles, NaNs become 0s
+                        DataDeletionOnsetOffset_sample{active_channel_i}(tt,:) = FreeTextSamples(tt)+[Onset Offset];
+                        DataDeletionOnsetOffset_usec{active_channel_i}(tt,:) = get_timestamps_for_Nlg_voltage_samples(FreeTextSamples(tt)+[Onset Offset],Ind_firstNlast_samples(:,1)',Timestamps_first_samples_usec,1e6/nanmean(Estimated_channelFS_Transceiver));
+                    end
+                    hold on
+                    plot(Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3):round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3))), 'r-', 'LineWidth',2)
+                    legend('Before pulse detection','derivative','Threshold on derivative','After pulse supression','Location','NorthWest');
+                    title(sprintf('Free Text Artifact %d/%d Threshold factor = %d',tt, length(FreeTextSamples),ThreshFactor(ThreshFactorI)));
+                    pause(1)
+                    clf(F20)
+                end
+                
+                SystCheckInd = find(contains(Event_types_and_details, 'CD='));
+                SystCheckTime = Event_timestamps_usec(SystCheckInd);
+                SystCheckTime = SystCheckTime(~isnan(SystCheckTime));
+                SystCheckSamples=get_voltage_samples_for_Nlg_timestamps(SystCheckTime,Ind_firstNlast_samples(:,1),Timestamps_first_samples_usec,10^6/nanmean(Estimated_channelFS_Transceiver));
+                DataDeletionOnsetOffset_sample{active_channel_i} = [DataDeletionOnsetOffset_sample{active_channel_i}; nan(length(SystCheckSamples),2)];
+                DataDeletionOnsetOffset_usec{active_channel_i} = [DataDeletionOnsetOffset_usec{active_channel_i}; nan(length(SystCheckSamples),2)];
+                % calculate the average voltage in the preceding [-1s -800ms] and
+                % find all points in the preceeding 150ms and following 50ms that are 10 times the SD away from the
+                % mean, and replace them by NaNs
+                for tt=1:length(SystCheckSamples)
+                    Local_Voltage = Voltage_Trace(SystCheckSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3):round(nanmean(Estimated_channelFS_Transceiver)*50*10^-3)));
+                    DiffLocal_Voltage = abs(diff(Local_Voltage));
+                    MeanBefore = mean(DiffLocal_Voltage(1:round(nanmean(Estimated_channelFS_Transceiver)*250*10^-3)));
+                    SDBefore = std(DiffLocal_Voltage(1:round(nanmean(Estimated_channelFS_Transceiver)*250*10^-3)));
+                    for ThreshFactorI = 1:length(ThreshFactor) % Test different threshold until we find the pulse but don't go lower than 10X
+                        Thresh = (MeanBefore+ThreshFactor(ThreshFactorI)*SDBefore);
+                        PulsePoints = find(DiffLocal_Voltage>Thresh);
+                        if (length(PulsePoints)>=2) && ((PulsePoints(end)-PulsePoints(1))>30)
+                            break
+                        end
+                    end
+                    plot(Voltage_Trace(SystCheckSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3):round(nanmean(Estimated_channelFS_Transceiver)*50*10^-3))))
+                    hold on
+                    plot(DiffLocal_Voltage, 'k--')
+                    hold on
+                    plot([1 length(DiffLocal_Voltage)], [Thresh Thresh], 'r:')
+                    if ~isempty(PulsePoints)
+                        Onset = PulsePoints(1) -10-round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3);
+                        Offset = PulsePoints(end) + 10 -round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3);
+                        Voltage_Trace(SystCheckSamples(tt) + (Onset : Offset)) = nan(length(Onset : Offset),1);
+%                         AD_count_channeli_all_files(SystCheckSamples(tt)
+%                         + (Onset : Offset)) = nan(length(Onset :
+%                         Offset),1); Replacing the samples by NaN in the raw data does not
+%                     work because as soon as it is transfered back to
+%                     doubles, NaNs become 0s
+                        DataDeletionOnsetOffset_sample{active_channel_i}(length(FreeTextSamples)+tt,:) = SystCheckSamples(tt)+[Onset Offset];
+                        DataDeletionOnsetOffset_usec{active_channel_i}(length(FreeTextSamples)+tt,:) = get_timestamps_for_Nlg_voltage_samples(SystCheckSamples(tt)+[Onset Offset],Ind_firstNlast_samples(:,1)',Timestamps_first_samples_usec,1e6/nanmean(Estimated_channelFS_Transceiver));
+                    end
+                    hold on
+                    plot(Voltage_Trace(SystCheckSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3):round(nanmean(Estimated_channelFS_Transceiver)*50*10^-3))), 'r-', 'LineWidth',2)
+                    legend('Before pulse detection','derivative','Threshold on derivative','After pulse supression','Location','NorthWest');
+                    title(sprintf('System Check Artifact %d/%d ThresholdFactor = %d',tt, length(SystCheckSamples),ThreshFactor(ThreshFactorI)));
+                    pause(1)
+                    clf(F20)
+                end
+           
+                % If Neural data, extract position of potential spike on
+                % the voltage trace that was cleaned from the RF Artifacts
                 if sum(Missing_files)
                     [Peaks_positions, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples, 'MissingFiles',find(Missing_files));
                 else
@@ -791,6 +898,13 @@ if Save_voltage
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
                 OUTDAT.Peaks_positions= Peaks_positions;
                 OUTDAT.Filtered_voltage_trace= Filtered_voltage_trace;
+                OUTDAT.DataDeletionOnsetOffset_usec = DataDeletionOnsetOffset_usec{active_channel_i};
+                OUTDAT.DataDeletionOnsetOffset_sample = DataDeletionOnsetOffset_sample{active_channel_i};
+                clear Peaks_positions Filtered_voltage_trace
+                if CheckSpike    
+                    [Spike_arrival_times, Snippets] = extract_tetrode_snippets(OUTDAT.Peaks_positions, Output_folder, Active_channels(active_channel_i));
+                    plot_spike_snippets(Spike_arrival_times, Snippets,nanmean(Estimated_channelFS_Transceiver));
+                end
             end
             parsave(Filename,OUTDAT)
             fprintf('Voltage trace of channel %d saved to %s\n', Active_channels(active_channel_i), Filename)
@@ -802,11 +916,13 @@ if Save_voltage
         fprintf('Channel %d/%d: Data from %d out of %d .DAT files in %s were processed and saved.\n',active_channel_i,Nactive_channels,Nfiles-sum(Missing_files), Nfiles, Input_folder);
         if Save_param_figure
             saveas(Figure1,fullfile(Output_folder,sprintf('CD_correction%d.fig',Active_channels(active_channel_i))))
-            saveas(Figure2,fullfile(Output_folder,sprintf('SampleFrequency%d.fig',Active_channels(active_channel_i))))
-            close(Figure2)
-            clear Figure2
+            if length(unique(Estimated_channelFS_Transceiver))>1
+                saveas(Figure2,fullfile(Output_folder,sprintf('SampleFrequency%d.fig',Active_channels(active_channel_i))))
+                close(Figure2)
+                clear Figure2
+            end
         end
-        clear OUTDAT AD_count_channeli_all_files Peaks_positions Filtered_voltage_trace
+        clear OUTDAT AD_count_channeli_all_files
     end
     
     % check that all channels where stopped recording at the same sample
@@ -817,9 +933,25 @@ if Save_voltage
         error('Error of data allignment, written data were not stopped at the same sample\n')
     end
     
-    % If neural data, sort the potential spike arrival times on tetrode bundles to
+    % If neural data, harmonize and save the time periods where data were replaced by NaNs because of RF signal artifact
+    % sort the potential spike arrival times on tetrode bundles to
     % only keep one 4 dimensional snippet per spike
     if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
+        fprintf(1,'-> Harmonizing and Saving data cleaning info for future reference\n')
+        % for each event keep the earlier onset and the latest offset of
+        % the data sequence suspected to have the pulses
+        NRFArtifact = size(DataDeletionOnsetOffset_usec{1},1);
+        DataDeletionOnsetOffset_usec_sync = nan(NRFArtifact,2);
+        DataDeletionOnsetOffset_sample_sync = nan(NRFArtifact,2);
+        for aa=1:NRFArtifact
+            DataDeletionOnsetOffset_usec_sync(aa,1) = min(cellfun(@(V) V(aa,1), DataDeletionOnsetOffset_usec));
+            DataDeletionOnsetOffset_usec_sync(aa,2) = max(cellfun(@(V) V(aa,2), DataDeletionOnsetOffset_usec));
+            DataDeletionOnsetOffset_sample_sync(aa,1) = min(cellfun(@(V) V(aa,1), DataDeletionOnsetOffset_sample));
+            DataDeletionOnsetOffset_sample_sync(aa,2) = max(cellfun(@(V) V(aa,2), DataDeletionOnsetOffset_sample));
+        end
+        Filename=fullfile(Output_folder, sprintf('%s_%s_EVENTS.mat', BatID,Date));
+        save(Filename, 'DataDeletionOnsetOffset_usec', 'DataDeletionOnsetOffset_usec_sync', 'DataDeletionOnsetOffset_sample', 'DataDeletionOnsetOffset_sample_sync', '-append')
+        
         fprintf(1, '-> Neural logger: Extracting spike arrival times and spike snippets\n')
         % Loop through tetrodes and first combine, for each tetrode,
         % the potential spike positions detected on each electrode 
@@ -836,6 +968,14 @@ if Save_voltage
             for channel_i = 1:length(Active_channels_local)
                 FileName=fullfile(Output_folder, sprintf('%s_%s_CSC%d.mat', BatID,Date, Active_channels_local(channel_i)));
                 D=load(FileName, 'Peaks_positions');
+                % identifying peaks that were detected within an artefact
+                % period and erase them
+                FalsePeaksInd = cell(NRFArtifact,1);
+                for aa=1:NRFArtifact
+                    FalsePeaksInd{aa} = find((D.Peaks_positions<DataDeletionOnsetOffset_sample_sync(aa,2)) .* (D.Peaks_positions>DataDeletionOnsetOffset_sample_sync(aa,1)));
+                end
+                FalsePeaksInd = cell2mat(FalsePeaksInd');
+                D.Peaks_positions(FalsePeaksInd) = [];
                 All_Peaks_positions{channel_i} = D.Peaks_positions;
                 clear D
                 D=load(FileName, 'Filtered_voltage_trace');
@@ -843,11 +983,23 @@ if Save_voltage
                 clear D
             end
             % combine the peaks
-           [Final_Peaks_positions{tt}]=combine_tetrode_spikes(All_Peaks_positions, All_Peaks_voltage);
-           Num_peaks(tt) = length(Final_Peaks_positions{tt});
-           clear All_Peaks_positions
-           clear All_Peaks_voltage
+            if sum(cellfun('isempty', All_Peaks_positions))==length(Active_channels_local)
+                fprintf('*** NO SPIKE DETECTED FOR TETRODE %d/%d ***\n', tt, Num_tetrodes)
+                Num_peaks(tt) = 0;
+                clear All_Peaks_positions
+                clear All_Peaks_voltage
+            else
+                [Final_Peaks_positions{tt}]=combine_tetrode_spikes(All_Peaks_positions, All_Peaks_voltage);
+                Num_peaks(tt) = length(Final_Peaks_positions{tt});
+                clear All_Peaks_positions
+                clear All_Peaks_voltage
+                if CheckSpike
+                    [Spike_arrival_times, Snippets] = extract_tetrode_snippets(Final_Peaks_positions{tt}, Output_folder, Active_channels_local);
+                    plot_spike_snippets(Spike_arrival_times, Snippets,nanmean(Estimated_channelFS_Transceiver));
+                end
+            end
         end
+        
         
         % Now eliminate all potential spikes that are most likely noise.
         % Criteria: all threshold crossing peaks that are detected on all 4
@@ -882,7 +1034,10 @@ if Save_voltage
             % select the active channels for that bundle
             Active_channels_local = Active_channels(logical((Active_channels <(tt*Num_EperBundle)) .* (Active_channels >=((tt-1)*Num_EperBundle))));
             [Spike_arrival_times, Snippets] = extract_tetrode_snippets(Final_Peaks_positions{tt}, Output_folder, Active_channels_local); %#ok<ASGLU>
-        
+            if CheckSpike
+               plot_spike_snippets(Spike_arrival_times, Snippets,nanmean(Estimated_channelFS_Transceiver));
+           end
+            
             % Save one file for each tetrode
             fprintf(1, 'Save spike arrival times and spike snippets\n')
             Filename_ST = fullfile(Output_folder,sprintf('%s_%s_Tetrode_spikes_time_T%d.mat',BatID, Date,tt));
