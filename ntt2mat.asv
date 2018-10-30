@@ -37,11 +37,8 @@ ExtractionMode = 1;
 %                      1 (Extract All): Extracts data from every record in
 %                        the file.
 
-% Save the current path we are in
-CurrentPath = pwd;
-
 % Go to the MatlabImportExport folder
-eval(sprintf('cd %s',MatlabImpExpCodePath));
+sprintf('cd MatlabImportExport_v6.0.0
 
 % Loop through files, extract data
 for SU_i=1:Num_SU % for each spike sorted unit
@@ -54,6 +51,4 @@ for SU_i=1:Num_SU % for each spike sorted unit
                      HeaderExtractionFlag, ExtractionMode,[]); %#ok<ASGLU>
     save(Mat_Filename, 'Spike_arrival_times', 'Spike_sort_ID', 'Spike_snippets', 'Header')
 end
-% Go back to the initial folder
-eval(sprintf('cd %s',CurrentPath));
 end
