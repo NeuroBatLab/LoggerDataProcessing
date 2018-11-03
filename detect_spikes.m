@@ -61,9 +61,13 @@ end
 for cc=1:size(Chuncks,1)
     Local_Voltage = Voltage_Trace(Chuncks(cc,1):Chuncks(cc,2));
     NanInd = find(isnan(Local_Voltage));
-    F1stNanInd = [1 find(diff(NanInd)>1)+1];
-    LastNanInd = [find(diff(NanInd)>1) length(NanInd)];
-    SmallChuncks = horzcat([Chuncks(cc,1) ; Chuncks(cc,1) + NanInd(LastNanInd)'], [Chuncks(cc,1)-1 + NanInd(F1stNanInd)'-1 ; Chuncks(cc,2)]);
+    if isempty(NanInd)
+        SmallChuncks = Chuncks(cc,:);
+    else
+        F1stNanInd = [1 find(diff(NanInd)>1)+1];
+        LastNanInd = [find(diff(NanInd)>1) length(NanInd)];
+        SmallChuncks = horzcat([Chuncks(cc,1) ; Chuncks(cc,1) + NanInd(LastNanInd)'], [Chuncks(cc,1)-1 + NanInd(F1stNanInd)'-1 ; Chuncks(cc,2)]);
+    end
     for ccin=1:size(SmallChuncks,1)
         if sum(isnan(Voltage_Trace(SmallChuncks(ccin,1):SmallChuncks(ccin,2))))
             error('Error of indexaion of chuncks of data without NaNs in detect_spikes.m, check the code!\n')
