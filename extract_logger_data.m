@@ -776,11 +776,14 @@ if Save_voltage
             % signal emission by the logger causing pulses in the signal)
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
                 ThreshFactor = [35 25];
+                StartedRec = find(contains(Event_types_and_details, 'Mode change. Started recording'),1,'first');
+                StartedRecTime = Event_timestamps_usec(StartedRec);
                 StoppedRec = find(contains(Event_types_and_details, 'Mode change. Stopped recording'),1,'last');
                 StoppedRecTime = Event_timestamps_usec(StoppedRec);
                 FreeTextInd = find(contains(Event_types_and_details, 'Free text'));
                 FreeTextTime = Event_timestamps_usec(FreeTextInd);
                 FreeTextTime = FreeTextTime(FreeTextTime<(StoppedRecTime-100000)); % Get rid of Free texts that were sent too close from or after the end of recordings (within 100ms before the Mode change is log on the event file the recording already stopped)
+                FreeTextTime = FreeTextTime(FreeTextTime>StartedRecTime); % Get rid of Free texts that were sent before the begining of recordings
                 FreeTextSamples=get_voltage_samples_for_Nlg_timestamps(FreeTextTime,Ind_firstNlast_samples(:,1),Timestamps_first_samples_usec,10^6/nanmean(Estimated_channelFS_Transceiver));
                 DataDeletionOnsetOffset_usec{active_channel_i} = nan(length(FreeTextSamples),2);
                 DataDeletionOnsetOffset_sample{active_channel_i} = nan(length(FreeTextSamples),2);
@@ -830,6 +833,7 @@ if Save_voltage
                 SystCheckTime = Event_timestamps_usec(SystCheckInd);
                 SystCheckTime = SystCheckTime(~isnan(SystCheckTime)); % Get rid of nan values
                 SystCheckTime = SystCheckTime(SystCheckTime<(StoppedRecTime-100000)); % Get rid of system checks that are too close from the end of recordings (within 100ms before the Mode change is log on the event file the recording already stopped)
+                SystCheckTime = SystCheckTime(SystCheckTime>StartedRecTime); % Get rid of system checks that were sent before the begining of recordings
                 SystCheckSamples=get_voltage_samples_for_Nlg_timestamps(SystCheckTime,Ind_firstNlast_samples(:,1),Timestamps_first_samples_usec,10^6/nanmean(Estimated_channelFS_Transceiver));
                 DataDeletionOnsetOffset_sample{active_channel_i} = [DataDeletionOnsetOffset_sample{active_channel_i}; nan(length(SystCheckSamples),2)];
                 DataDeletionOnsetOffset_usec{active_channel_i} = [DataDeletionOnsetOffset_usec{active_channel_i}; nan(length(SystCheckSamples),2)];
