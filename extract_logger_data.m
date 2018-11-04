@@ -95,7 +95,7 @@
 
 % Code inspired from Wujie Zhang function extract_Nlg_data and Maimon Rose function extract_audio_data. Written by
 % Julie Elie
-last_code_update='9/09/2018, Julie Elie'; % identifies the version of the code
+last_code_update='11/03/2018, Julie Elie'; % identifies the version of the code
 
 %% Sorting input arguments
 pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike'};
@@ -370,12 +370,16 @@ end
 
 % Get rid of outsider: obvious error of Deuteron in the Clock drift report
 Outsider_diff = find(abs(diff(CD_sec))> (nanmean(abs(diff(CD_sec))) + 4*nanstd(abs(diff(CD_sec))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
+
+% consecutive indices of the derivative that are away from the arevage
+% distribution correspond to outsider points that we can eliminate.
 Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
 CD_sec_Outsider = CD_sec(Outsider_local); % value of clock drift reports that are discarded
 CD_sec(Outsider_local)= NaN; % replace that clock drift report by NaN in the whole data section
 Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
 
-% Work between 2 clock synchronization events. It is assumed that the drift
+
+% Work between clock synchronization events. It is assumed that the drift
 % is mostly linear between these synchronization events.
 Ind_Start = find(contains(Event_types_and_details,'Started recording'),1);
 Ind_Sync = sort([Ind_Start; find(contains(Event_types_and_details,'Clocks synchronized')); length(Event_types_and_details)]); % synchronization evenst, and the first and last event
@@ -407,6 +411,17 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     CD_sec(Ind_CD_local(Outsider_local))= NaN; % replace that clock drift report by NaN in the whole data section
     Outsider = [Outsider; Ind_CD_local(Outsider_local)]; %#ok<AGROW> Keep track of the index ofthe removed clock drift report
     Ind_CD_local(Outsider_local) = []; %remove that indices of clock drift report from the set of usable ones
+    
+    % Identify isolate outsider that corresponds to sudden clock
+    % reinitialization and error if they are found. the code currently does not
+    % handle such issues
+    Sudden_shift = Outsider_diff(find(diff(Outsider_diff)>1)+1);
+    if isempty(Sudden_shift) && length(Outsider_diff)==1 % There is only a sudden clock reinitialization in that recording
+        Sudden_shift = Outsider_diff;
+    end
+    if ~isempty(Sudden_shift)
+        error('A sudden clock shift was detected. The clock drift jump from %fs to %fs between the %dth and %dth system checks.\n The extraction code does not currently handle such issues\n. Most likely the transceiver or the logger reset its clock without a warning\n', CD_sec(Sudden_shift), CD_sec(Sudden_shift +1), Sudden_shift, Sudden_shift+1)
+    end
     
     % Convert the events that were logged in logger time
     % to transceiver time for each chunck of data
