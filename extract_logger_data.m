@@ -150,7 +150,7 @@ end
 if 3 ~= find(strcmp(Header, 'Time (ms from midnight)'))
     error(' The third column does not correspond to the time from midnight\n')
 else
-    Event_timestamps_usec=Data{3}*1000; % time stamps, converted from ms to us
+    Event_timestamps_usec_raw=Data{3}*1000; % time stamps, converted from ms to us
 end
 if 4~= find(strcmp(Header, 'Time Source'))
     error(' The fourth column does not correspond to the time source\n')
@@ -200,11 +200,11 @@ IndDateStop = find(contains(Date_all, Date),1,'last');
 CD_ind = find(contains(Event_types_and_details, 'Clocks synchronized')); % Find the synchronization event that just preceded the date line as a starting point
 Start = CD_ind(find(CD_ind<IndLT(IndDateStart), 1, 'last'));
 if IndDate == length(IndLT) || IndDateStop == length(IndLT)
-    Stop = length(Event_timestamps_usec);
+    Stop = length(Event_timestamps_usec_raw);
 else
     Stop = IndLT(IndDateStop+1);
 end
-Event_timestamps_usec = Event_timestamps_usec(Start:Stop);
+Event_timestamps_usec_raw = Event_timestamps_usec_raw(Start:Stop);
 Event_timestamps_source = Event_timestamps_source(Start:Stop);
 Event_types = Event_types(Start:Stop);
 Event_types_and_details = Event_types_and_details(Start:Stop);
@@ -344,7 +344,7 @@ end
 
 
 %% Get a reference for the time
-LoggerTime_ref = Event_timestamps_usec(find(contains(Event_types_and_details,'Started recording'),1));
+LoggerTime_ref = Event_timestamps_usec_raw(find(contains(Event_types_and_details,'Started recording'),1));
 % Event_timestamps_usec = Event_timestamps_usec - LoggerTime_ref;
 
 %% Synchronize logger to transceiver
@@ -365,7 +365,7 @@ for CD_i=1:length(Ind_CD)
     IndLT3 = strfind(Event_types_and_details{Ind_CD(CD_i)},' ');% find the empty space after the clock difference value from eg. "...CD=-0.001000 RR=0..."
     IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
     CD_sec(CD_i)=str2double(Event_types_and_details{Ind_CD(CD_i)}((IndLT2+length(Str)) : (IndLT3-1))); % clock differences are in s
-    CD_logger_stamps(CD_i)=Event_timestamps_usec(Ind_CD(CD_i)); % the time of the logger clock when the clock difference was reported
+    CD_logger_stamps(CD_i)=Event_timestamps_usec_raw(Ind_CD(CD_i)); % the time of the logger clock when the clock difference was reported
 end
 
 % Get rid of outsider: obvious error of Deuteron in the Clock drift report
@@ -425,12 +425,12 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
             CD_sec_local_std = nanstd(CD_sec_local);
             CD_sec_local_zscore = (CD_sec_local - CD_sec_local_mean)/CD_sec_local_std;
             [slope_and_intercept,~,mean_std_x]=polyfit(CD_logger_stamps_zscore, CD_sec_local_zscore, 1);
-            Event_timestamps_usec_local_zscore = (Event_timestamps_usec(Ind_Logger_times(Ind_Logger_times_local)) - CD_logger_stamps_localmean)/CD_logger_stamps_localstd;
+            Event_timestamps_usec_local_zscore = (Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local)) - CD_logger_stamps_localmean)/CD_logger_stamps_localstd;
             Estimated_CD(Ind_Logger_times_local)=1e6 * (CD_sec_local_std * polyval(slope_and_intercept,Event_timestamps_usec_local_zscore,[],mean_std_x) + CD_sec_local_mean);
             % Estimate by fitting a line over the clock differences of
             % all the PC-generated comments in the current interval
         elseif strcmp(CD_Estimation, 'interpolation')
-            Estimated_CD(Ind_Logger_times_local)=interp1(CD_logger_stamps(Ind_CD_local), CD_sec_local*1e6, Event_timestamps_usec(Ind_Logger_times(Ind_Logger_times_local)),'linear','extrap');
+            Estimated_CD(Ind_Logger_times_local)=interp1(CD_logger_stamps(Ind_CD_local), CD_sec_local*1e6, Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local)),'linear','extrap');
             % Estimate by linearly interpolating between the clock
             % differences of each pair of consecutive PC-generated
             % comments; also extrapolates for time points before the
@@ -447,6 +447,7 @@ if length(Ind_Sync)==2
     disp('There was no clock synchronization event during the experiment')
 end
 
+Event_timestamps_usec = Event_timestamps_usec_raw;
 Event_timestamps_usec(Ind_Logger_times)=Event_timestamps_usec(Ind_Logger_times) - Estimated_CD; % convert the time stamps that were originally logger times to transceiver times
 %Event_timestamps_usec=round(Event_timestamps_usec); % round all time stamps to integer microseconds
 
@@ -516,7 +517,7 @@ if Save_voltage
     % Find the time stamps identifying start of a new data file
     Ind_file_start=find(ismember(Event_types,'File started')); % find the 'File started' events
     File_start_timestamps=Event_timestamps_usec(Ind_file_start);
-    File_start_timestamps_LogRef = (Data{3}(Ind_file_start))*1000; % Time in microseconds
+    File_start_timestamps_LogRef = (Event_timestamps_usec_raw(Ind_file_start)); % Time in microseconds
     File_start_details=Event_types_and_details(Ind_file_start); % these are eg. "File started. File index: 000"
     Nfiles=length(File_start_timestamps);
     if length(AllDatFiles) ~=Nfiles
@@ -736,13 +737,13 @@ if Save_voltage
             subplot(1,2,1)
             plot(Estimated_channelFS_Transceiver-nanmean(Estimated_channelFS_Transceiver))
             hold on
-            plot(Estimated_channelFS_Logger-mean(Estimated_channelFS_Logger))
+            plot(Estimated_channelFS_Logger-nanmean(Estimated_channelFS_Logger))
             hold on
             plot(Estimated_channelFS_Logger-FS)
             legend('Transceiver', 'Logger','Logger - advertised FS')
             ylabel('Sample frequency variations around the mean or expected value')
             xlabel('File #')
-            text(Nfiles/2,0.0106, sprintf('Logger FS = 50,000Hz + %.3f',unique(Estimated_channelFS_Logger-FS)));
+            text(Nfiles/2,0, sprintf('Logger FS = 50,000Hz + %.3f',unique(Estimated_channelFS_Logger-FS)));
             
             subplot(1,2,2)
             plot(Estimated_channelT_Transceiver-nanmean(Estimated_channelT_Transceiver))
@@ -776,6 +777,7 @@ if Save_voltage
             % signal emission by the logger causing pulses in the signal)
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
                 ThreshFactor = [35 25];
+                Buffer_RFBug = 6*10^-3;
                 StartedRec = find(contains(Event_types_and_details, 'Mode change. Started recording'),1,'first');
                 StartedRecTime = Event_timestamps_usec(StartedRec);
                 StoppedRec = find(contains(Event_types_and_details, 'Mode change. Stopped recording'),1,'last');
@@ -793,25 +795,25 @@ if Save_voltage
                 Voltage_Trace = double(int16(AD_count_channeli_all_files))*ADC2uV_resolution;
                 F20=figure(20);
                 for tt=1:length(FreeTextSamples)
-                    Local_Voltage = Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3):round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3)));
+                    Local_Voltage = Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug):round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug)));
                     DiffLocal_Voltage = abs(diff(Local_Voltage));
-                    MeanBefore = mean(DiffLocal_Voltage(1:round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3)));
-                    SDBefore = std(DiffLocal_Voltage(1:round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3)));
+                    MeanBefore = mean(DiffLocal_Voltage(1:round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug)));
+                    SDBefore = std(DiffLocal_Voltage(1:round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug)));
                     for ThreshFactorI = 1:length(ThreshFactor) % Test different threshold until we find the pulse but don't go lower than 10X
                         Thresh = (MeanBefore+ThreshFactor(ThreshFactorI)*SDBefore);
-                        PulsePoints = find(DiffLocal_Voltage((round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3)):end)>Thresh);
+                        PulsePoints = find(DiffLocal_Voltage((round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug)):end)>Thresh);
                         if (length(PulsePoints)>=2) && (PulsePoints(end)-PulsePoints(1))>30
                             break
                         end
                     end
-                    plot(Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3):round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3))))
+                    plot(Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug):round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug))))
                     hold on
                     plot(DiffLocal_Voltage, 'k--')
                     hold on
                     plot([1 length(DiffLocal_Voltage)], [Thresh Thresh], 'r:')
                     if ~isempty(PulsePoints)
                         Onset = PulsePoints(1) -10;
-                        Offset = PulsePoints(end) + 10;
+                        Offset = PulsePoints(end) + 30;
                         Voltage_Trace(FreeTextSamples(tt) + (Onset : Offset)) = nan(length(Onset : Offset),1);
                         %                     AD_count_channeli_all_files(FreeTextSamples(tt) +
                         %                     (Onset : Offset)) = nan(length(Onset : Offset),1);
@@ -822,7 +824,7 @@ if Save_voltage
                         DataDeletionOnsetOffset_usec{active_channel_i}(tt,:) = get_timestamps_for_Nlg_voltage_samples(FreeTextSamples(tt)+[Onset Offset],Ind_firstNlast_samples(:,1)',Timestamps_first_samples_usec,1e6/nanmean(Estimated_channelFS_Transceiver));
                     end
                     hold on
-                    plot(Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3):round(nanmean(Estimated_channelFS_Transceiver)*5*10^-3))), 'r-', 'LineWidth',2)
+                    plot(Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug):round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug))), 'r-', 'LineWidth',2)
                     legend('Before pulse detection','derivative','Threshold on derivative','After pulse supression','Location','NorthWest');
                     title(sprintf('Free Text Artifact %d/%d Threshold factor = %d',tt, length(FreeTextSamples),ThreshFactor(ThreshFactorI)));
                     pause(1)
@@ -859,7 +861,7 @@ if Save_voltage
                     plot([1 length(DiffLocal_Voltage)], [Thresh Thresh], 'r:')
                     if ~isempty(PulsePoints)
                         Onset = PulsePoints(1) -10-round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3);
-                        Offset = PulsePoints(end) + 10 -round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3);
+                        Offset = PulsePoints(end) + 30 -round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3);
                         Voltage_Trace(SystCheckSamples(tt) + (Onset : Offset)) = nan(length(Onset : Offset),1);
 %                         AD_count_channeli_all_files(SystCheckSamples(tt)
 %                         + (Onset : Offset)) = nan(length(Onset :
