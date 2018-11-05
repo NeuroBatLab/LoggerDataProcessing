@@ -419,6 +419,7 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     if isempty(Sudden_shift) && length(Outsider_diff)==1 % There is only a sudden clock reinitialization in that recording
         if Outsider_diff==1 % Only the first CD check is incorrect, get rid of it
             Ind_CD_local(Outsider_diff)=[];
+            CD_sec_local(Outsider_diff)=[];
         else
             Sudden_shift = Outsider_diff;
         end
@@ -760,7 +761,7 @@ if Save_voltage
             hold on
             plot(Estimated_channelFS_Logger-FS)
             legend('Transceiver', 'Logger','Logger - advertised FS')
-            ylabel('Sample frequency variations around the mean or expected value')
+            ylabel('Sample frequency variations around the mean or expected value in Hz')
             xlabel('File #')
             text(Nfiles/2,0, sprintf('Logger FS = 50,000Hz + %.3f',unique(Estimated_channelFS_Logger-FS)));
             
@@ -832,6 +833,7 @@ if Save_voltage
                     plot([1 length(DiffLocal_Voltage)], [Thresh Thresh], 'r:')
                     if ~isempty(PulsePoints)
                         Onset = PulsePoints(1) -10;
+                        if Voltage_Trace(FreeTextSamples(tt) +
                         Offset = PulsePoints(end) + 30;
                         Voltage_Trace(FreeTextSamples(tt) + (Onset : Offset)) = nan(length(Onset : Offset),1);
                         %                     AD_count_channeli_all_files(FreeTextSamples(tt) +

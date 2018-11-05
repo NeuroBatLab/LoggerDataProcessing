@@ -761,7 +761,7 @@ if Save_voltage
             hold on
             plot(Estimated_channelFS_Logger-FS)
             legend('Transceiver', 'Logger','Logger - advertised FS')
-            ylabel('Sample frequency variations around the mean or expected value')
+            ylabel('Sample frequency variations around the mean or expected value in Hz')
             xlabel('File #')
             text(Nfiles/2,0, sprintf('Logger FS = 50,000Hz + %.3f',unique(Estimated_channelFS_Logger-FS)));
             
@@ -833,7 +833,11 @@ if Save_voltage
                     plot([1 length(DiffLocal_Voltage)], [Thresh Thresh], 'r:')
                     if ~isempty(PulsePoints)
                         Onset = PulsePoints(1) -10;
-                        Offset = PulsePoints(end) + 30;
+                        if Voltage_Trace(FreeTextSamples(tt) + PulsePoints(end)-5)>0 % this is a square shaped artifact we can cut close to the end
+                            Offset = PulsePoints(end) + 10;
+                        else
+                            Offset = PulsePoints(end) + 30;
+                        end
                         Voltage_Trace(FreeTextSamples(tt) + (Onset : Offset)) = nan(length(Onset : Offset),1);
                         %                     AD_count_channeli_all_files(FreeTextSamples(tt) +
                         %                     (Onset : Offset)) = nan(length(Onset : Offset),1);
