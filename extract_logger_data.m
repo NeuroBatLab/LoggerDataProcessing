@@ -404,7 +404,7 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     CD_sec_local = CD_sec(Ind_CD_local);
  
     % Get rid of outsider again: obvious error of Deuteron in the Clock drift report
-    Outsider_diff = find(abs(diff(CD_sec_local))> (nanmean(abs(diff(CD_sec_local))) + 4*nanstd(abs(diff(CD_sec_local))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
+    Outsider_diff = find(abs(diff(CD_sec_local))- (nanmean(abs(diff(CD_sec_local)))> 4*nanstd(abs(diff(CD_sec_local))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
     Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
     CD_sec_Outsider = [CD_sec_Outsider; CD_sec_local(Outsider_local)]; %#ok<AGROW>
     CD_sec_local(Outsider_local) = []; % erase that clock drift report from the local section of data
@@ -424,7 +424,7 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
             Sudden_shift = Outsider_diff;
         end
     end
-    if ~isempty(Sudden_shift)
+    if (~isempty(Sudden_shift)) && (abs(CD_sec(Sudden_shift)-CD_sec(Sudden_shift+1))>0.1) % Jump of more than a 100ms
         error('A sudden clock shift was detected. The clock drift jump from %fs to %fs between the %dth and %dth system checks.\n The extraction code does not currently handle such issues\n. Most likely the transceiver or the logger reset its clock without a warning\n', CD_sec(Sudden_shift), CD_sec(Sudden_shift +1), Sudden_shift, Sudden_shift+1)
     end
     
