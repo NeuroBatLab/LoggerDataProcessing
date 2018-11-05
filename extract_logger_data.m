@@ -417,7 +417,12 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     % handle such issues
     Sudden_shift = Outsider_diff(find(diff(Outsider_diff)>1)+1);
     if isempty(Sudden_shift) && length(Outsider_diff)==1 % There is only a sudden clock reinitialization in that recording
-        Sudden_shift = Outsider_diff;
+        if Outsider_diff==1 % Only the first CD check is incorrect, get rid of it
+            Ind_CD_local(Outsider_diff)=[];
+            CD_sec_local(Outsider_diff)=[];
+        else
+            Sudden_shift = Outsider_diff;
+        end
     end
     if ~isempty(Sudden_shift)
         error('A sudden clock shift was detected. The clock drift jump from %fs to %fs between the %dth and %dth system checks.\n The extraction code does not currently handle such issues\n. Most likely the transceiver or the logger reset its clock without a warning\n', CD_sec(Sudden_shift), CD_sec(Sudden_shift +1), Sudden_shift, Sudden_shift+1)

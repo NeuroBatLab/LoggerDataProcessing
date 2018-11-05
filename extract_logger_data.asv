@@ -378,15 +378,6 @@ CD_sec_Outsider = CD_sec(Outsider_local); % value of clock drift reports that ar
 CD_sec(Outsider_local)= NaN; % replace that clock drift report by NaN in the whole data section
 Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
 
-% Identify isolate outsider that corresponds to sudden clock
-% reinitialization and error if they are found. the code currently does not
-% handle such issues
-Sudden_shift = Outsider_diff(find(diff(Outsider_diff)>1)+1);
-if isempty(Sudden_shift) && length(Outsider_diff)==1 % There is only a sudden clock reinitialization in that recording
-    Sudden_shift = Outsider_diff;
-end
-if ~isempty(Sudden_shift)
-    error('A sudden clock shift was detected. The clock drift jump from %f to %f between the %dth and %dth system checks.\n The extraction code doe
 
 % Work between clock synchronization events. It is assumed that the drift
 % is mostly linear between these synchronization events.
@@ -420,6 +411,21 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     CD_sec(Ind_CD_local(Outsider_local))= NaN; % replace that clock drift report by NaN in the whole data section
     Outsider = [Outsider; Ind_CD_local(Outsider_local)]; %#ok<AGROW> Keep track of the index ofthe removed clock drift report
     Ind_CD_local(Outsider_local) = []; %remove that indices of clock drift report from the set of usable ones
+    
+    % Identify isolate outsider that corresponds to sudden clock
+    % reinitialization and error if they are found. the code currently does not
+    % handle such issues
+    Sudden_shift = Outsider_diff(find(diff(Outsider_diff)>1)+1);
+    if isempty(Sudden_shift) && length(Outsider_diff)==1 % There is only a sudden clock reinitialization in that recording
+        if Outsider_diff==1 % Only the first CD check is incorrect, get rid of it
+            Ind_CD_local(Outsider_diff)=[];
+        else
+            Sudden_shift = Outsider_diff;
+        end
+    end
+    if ~isempty(Sudden_shift)
+        error('A sudden clock shift was detected. The clock drift jump from %fs to %fs between the %dth and %dth system checks.\n The extraction code does not currently handle such issues\n. Most likely the transceiver or the logger reset its clock without a warning\n', CD_sec(Sudden_shift), CD_sec(Sudden_shift +1), Sudden_shift, Sudden_shift+1)
+    end
     
     % Convert the events that were logged in logger time
     % to transceiver time for each chunck of data
