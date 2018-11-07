@@ -1,6 +1,7 @@
+function script_extract_loggers(Date)
 TransferData = 0;
 %% Inputs
-Date = '07102018';
+%Date = '06272018';
 % BatIDs = {'65430' '71300' '71335' '71132' '59899' '65430'};
 BatIDs = {'65430'};
 % BatIDs = {'59899' '65430' '71300' '71335' '71137' '65430'};
@@ -11,8 +12,8 @@ LoggerNums = 16;
 %% Set paths and dependencies
 addpath(genpath('C:\Users\Julie\Documents\GitHub\LoggerDataProcessing'))
 Server_path = 'Z:\users\Julie E\GiMo_65430_71300\Loggers';
-Local_path = 'C:\Users\Julie\Documents\TempData';
-% Local_path = 'C:\Users\Batman\Documents\AnalysisFolder\';
+% Local_path = 'C:\Users\Julie\Documents\TempData';
+Local_path = 'C:\Users\Batman\Documents\AnalysisFolder\';
 Input_serverfolder=fullfile(Server_path, Date);
 Input_localfolder = fullfile(Local_path, Date);
 
