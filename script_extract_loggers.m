@@ -1,19 +1,26 @@
-function script_extract_loggers(Date)
-TransferData = 0;
+function script_extract_loggers(Date, BatIDs, LoggerNums, TransferData)
+if nargin<4
+    TransferData = 1;
+end
 %% Inputs
 %Date = '06272018';
 % BatIDs = {'65430' '71300' '71335' '71132' '59899' '65430'};
-BatIDs = {'65430'};
+% BatIDs = {'65430'};
 % BatIDs = {'59899' '65430' '71300' '71335' '71137' '65430'};
-LoggerNums = 16;
+% LoggerNums = 16;
 % LoggerNum = [5 6 7 9 10 16];
 % LoggerNum = [10 5 6 7 9 16];
 
 %% Set paths and dependencies
 addpath(genpath('C:\Users\Julie\Documents\GitHub\LoggerDataProcessing'))
 Server_path = 'Z:\users\Julie E\GiMo_65430_71300\Loggers';
-% Local_path = 'C:\Users\Julie\Documents\TempData';
-Local_path = 'C:\Users\Batman\Documents\AnalysisFolder\';
+if strcmp('BATMAN-PC', getenv('computername'))
+    Local_path = 'C:\Users\Batman\Documents\AnalysisFolder\';
+elseif strcmp('TADARIDA', getenv('computername'))
+    Local_path = 'C:\Users\Julie\Documents\TempData';
+else
+    Local_path = input('What is the path to the folder containing the data?\n','s');
+end
 Input_serverfolder=fullfile(Server_path, Date);
 Input_localfolder = fullfile(Local_path, Date);
 
@@ -44,8 +51,9 @@ for logger_k = 1:NLogger
     LoggerNumInd = strfind(Logger_dirs(logger_k).name, 'er');
     LoggerNum = str2double(Logger_dirs(logger_k).name(LoggerNumInd+2 : end));
     if ~ isempty(intersect(LoggerNum, LoggerNums))
+        LogInd = find(LoggerNums==LoggerNum);
         Input_dir{logger_k} = [Logger_dirs(logger_k).folder filesep Logger_dirs(logger_k).name filesep];
-        extract_logger_data(Input_dir{logger_k}, 'BatID', BatIDs{logger_k}, 'NlxSave',1);
+        extract_logger_data(Input_dir{logger_k}, 'BatID', BatIDs{LogInd}, 'NlxSave',1);
     end
 end
 
