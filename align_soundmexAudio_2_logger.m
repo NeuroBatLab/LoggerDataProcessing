@@ -26,9 +26,7 @@ function [Pulse_idx, Pulse_TimeStamp_Transc, File_number, Pulse_samp_audio, Slop
 % and logger recordings.
 %
 % Pulse_TimeStamp_Transc: times (ms) in transceiver time when TTL pulses arrived on
-% the transceiver. To be used with avi2nlg_time to locally interpolate
-% differences between time on AVI and NLG and correct for those
-% differences.
+% the transceiver.
 %
 % Pulse_samp_audio: sample indices when TTL pulses arrived 
 % on the soundcard.
@@ -51,6 +49,7 @@ TTL_param = load(fullfile(TTL_paramfile.folder, TTL_paramfile.name));
 AudioEvent_file = dir(fullfile(Audio_dir, sprintf('*%s*events.txt',ExpStartTime)));
 
 %% Extract TTL pulses from the audio recordings
+fprintf('Extract TTL pulses index and value from audio recordings\n');
 Pulse_idx_audio = cell(length(TTL_files),1); % This cell array withh contain the pulse train index of each TTL pulse identified in the recordings
 File_number = cell(length(TTL_files),1); % this cell array will contain the TTL file index number where the corresponding pulses are found
 Pulse_samp_audio = cell(length(TTL_files),1); % This cell array will contain the sample index of which each TTL pulse onset in the recordings
@@ -82,7 +81,7 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
     % Check that PulseTrainInd is what we expect to be
     NPulses = length(PulseTrainInd);
     if any(TTLHigh(PulseTrainInd)' ~= TTLHigh(1) + FS*TTL_param.IPTI*(0:(NPulses-1)))
-        error('The TTL pulses are not correctly detected, they are not where we extec them to be!\n')
+        error('The TTL pulses are not correctly detected, they are not where we expect them to be!\n')
     end
     
     % Now extract the pulses indices coded in the trains of pulses'
@@ -116,7 +115,9 @@ All_loggers = dir(fullfile(Loggers_dir, 'logger*'));
 NLog = length(All_loggers);
 Transceiver_time_drise1 = cell(NLog,1);
 Transceiver_time_dfall1 = cell(NLog,1);
+fprintf('Extract TTL status changes from ')
 for ll=1:NLog
+    fprintf('%s ', All_loggers(ll).name);
     Eventfile = dir(fullfile(All_loggers(ll).folder,All_loggers(ll).name, 'extracted_data', '*_EVENTS.mat')); % load file with TTL status info
     load(fullfile(Eventfile.folder, Eventfile.name), 'event_types_and_details', 'event_timestamps_usec');
     B=find(cellfun(@(x) contains(x,Session_strings{1}),event_types_and_details));
@@ -243,6 +244,9 @@ for ff=1:length(TTL_files)
     title(sprintf('TTL file %d',FileNum_u(ff)))
     hold off
     pause(1)
+    if save_options_parameters_CD_figure
+        saveas(F,fullfile(Audio_dir,sprintf('%s_%s_CD_correction_audio_piezo_TTLpositions_file_%d.fig', TTL_paramfile.name(1:6),ExpStartTime,ff)))
+    end
 end
 
 %% save data to file
