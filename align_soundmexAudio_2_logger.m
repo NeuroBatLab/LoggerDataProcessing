@@ -206,11 +206,29 @@ if strcmp(Method, 'rise')
     elseif strcmp(Method, 'risefall')
 end
 
-%% find common indices
+%% find common indices and eliminate outlayers
 [Pulse_idx, Iaudio, ITransc] = intersect(Pulse_idx_audio, Pulse_Idx_Transc);
 Pulse_TimeStamp_Transc = Pulse_TimeStamp_Transc(ITransc);
 Pulse_samp_audio = Pulse_samp_audio(Iaudio);
 File_number = File_number(Iaudio);
+% Outlayers are most likely indices that were not correctly decoded
+% resulting in obvious error in the Clock drift report
+Outsider_diff = find(abs(diff(Pulse_TimeStamp_Transc))> (nanmean(abs(diff(Pulse_TimeStamp_Transc))) + 4*nanstd(abs(diff(Pulse_TimeStamp_Transc))))); % identify indices of the derivative of Pulse_TimeStamp_Transc that are 4 standard deviation away from the mean
+% consecutive indices of the derivative that are away from the arevage
+% distribution correspond to outsider points that we can eliminate.
+Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative
+Outsider_idx = Pulse_idx(Outsider_local); % % Indices of TTL pulses that are discarted
+Outsider_idx_PTST=Pulse_TimeStamp_Transc(Outsider_local);
+Outsider_idx_PSA = Pulse_samp_audio(Outsider_local);
+Outsider_FileNumber = File_number(Outsider_local);
+% eliminate the wrong TTL pulses from the data
+Pulse_idx(Outsider_local) = [];
+Pulse_TimeStamp_Transc(Outsider_local)= [];
+Pulse_samp_audio(Outsider_local) = [];
+File_number(Outsider_local) = [];
+
+
+
 
 %% Perform a linear fit for each file
 Slope_and_intercept = cell(length(TTL_files),1);
