@@ -64,10 +64,14 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
     Num_Samp_audiofile(w,2)= length(Ttl_status);
     TTLHigh = find(diff(Ttl_status)>0.5)+1; % identify the increases in volatge
     TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
-    TTLLow = find(diff(Ttl_status)<-0.8)+1; % identify the decreases in volatge
+    TTLLow = find(diff(Ttl_status)<-0.80)+1; % identify the decreases in volatge
     TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
-    if length(TTLHigh)~=length(TTLLow)
-        error('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
+    if length(TTLHigh)>length(TTLLow)% Try a lower threshold we are missing some pulses
+        TTLLow = find(diff(Ttl_status)<-0.70)+1; % identify the decreases in volatge
+        TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+        if length(TTLHigh)~=length(TTLLow)%
+            error('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
+        end
     end
     
     Pulse_dur_ms = (TTLLow - TTLHigh)/TTL_param.Base_ttl_length; % duration of each pulse in ms
@@ -121,9 +125,16 @@ for ll=1:NLog
     Eventfile = dir(fullfile(All_loggers(ll).folder,All_loggers(ll).name, 'extracted_data', '*_EVENTS.mat')); % load file with TTL status info
     load(fullfile(Eventfile.folder, Eventfile.name), 'event_types_and_details', 'event_timestamps_usec');
     B=find(cellfun(@(x) contains(x,Session_strings{1}),event_types_and_details));
-    if ~isempty(B) % This is the reference logger, extract the informations about the session
+    C=find(cellfun(@(x) contains(x,Session_strings{2}),event_types_and_details));
+    if ~isempty(B) || ~isempty(C) % This is the reference logger, extract the informations about the session
         OnsetTime = 1e-3*event_timestamps_usec(B);
-        OffsetTime = 1e-3*event_timestamps_usec(find(cellfun(@(x) contains(x,Session_strings{2}),event_types_and_details)));
+        OffsetTime = 1e-3*event_timestamps_usec(C);
+        if isempty(OnsetTime) % there was a problem with the onset logging of the experiment let's keep everything
+            OnsetTime = 0;
+        end
+        if isempty(OffsetTime)
+            OffsetTime = Inf; % there was a problem with the onset logging of the experiment let's keep everything
+        end
     end
         
     Din = find(cellfun(@(x) contains(x,'Digital in'),event_types_and_details));
@@ -135,6 +146,7 @@ for ll=1:NLog
     Transceiver_time_drise1{ll} = 1e-3*event_timestamps_usec(Din(Drise1)); %#ok<FNDSB> % find times (ms) when TTL status changes to up
     Transceiver_time_dfall1{ll} = 1e-3*event_timestamps_usec(Din(Dfall1)); %#ok<FNDSB> % find times (ms) when TTL status changes to down
 end
+fprintf('\n')
 Transceiver_time_drise1 = unique(cell2mat(Transceiver_time_drise1));
 Transceiver_time_dfall1 = unique(cell2mat(Transceiver_time_dfall1));
 
@@ -162,9 +174,6 @@ if strcmp(Method, 'rise')
     Current_pulse = 0;
     for pp=1:length(IndPulse)
         Current_pulse = Current_pulse +1;
-        if Current_pulse == 981
-            error('buggy pulse')
-        end
         if pp==length(IndPulse)
             PulseTrain_Dur = diff(Transceiver_time_drise1(IndPulse(pp):end));
         else
@@ -174,16 +183,38 @@ if strcmp(Method, 'rise')
             Pulse_Idx_Transc{Current_pulse} = '0';
             Pulse_TimeStamp_Transc(Current_pulse) = Transceiver_time_drise1(IndPulse(pp));
         else
-            Pulse_Idx_Transc{Current_pulse} = [int2str(round(PulseTrain_Dur(1:(end-1))-TTL_param.IPI-TTL_param.Min_ttl_length)') '0'];
+            Pulse_Idx_hyp = [int2str(round(PulseTrain_Dur(1:(end-1))-TTL_param.IPI-TTL_param.Min_ttl_length)') '0'];
+            if length(Pulse_Idx_hyp)>8 % this is most likely an error
+                Pulse_Idx_Transc{Current_pulse} = 'NaN';
+            else
+                Pulse_Idx_Transc{Current_pulse} = Pulse_Idx_hyp;
+            end
             Pulse_TimeStamp_Transc(Current_pulse) = Transceiver_time_drise1(IndPulse(pp));
         end
         % increment the indexing by the number of missing pulses after that
         % one if there are some missing ones
-        if any(MissingPulsesIdx == IndPulse(pp))
-            Current_pulse = Current_pulse + MissingPulsesNum(MissingPulsesIdx == IndPulse(pp));
+        if any(MissingPulsesIdx == pp)
+            Current_pulse = Current_pulse + MissingPulsesNum(find(MissingPulsesIdx==pp));
         end
     end
+    EmptyIdx = cellfun('isempty',Pulse_Idx_Transc);
+    Pulse_Idx_Transc(EmptyIdx) = {'NaN'};
     Pulse_Idx_Transc = cell2mat(cellfun(@(X) str2double(regexprep(X, ' ','')), Pulse_Idx_Transc, 'UniformOutput',0));
+    % Now check that the first pulse of a series of ten is correctly
+    % detected at the right spot or replace all the pulses of the series by
+    % Nan since the timing would not be picked up correctly
+    UniquePulses = unique(Pulse_Idx_Transc);
+    for upp = 1:length(UniquePulses)
+        IdxfirstIdx = find(Pulse_Idx_Transc == UniquePulses(upp),1,'First');
+        if ~isempty(IdxfirstIdx)
+            if (UniquePulses(upp) == 0) && (IdxfirstIdx~= 1) % Treat the sppecial case of single digits
+                Pulse_Idx_Transc(Pulse_Idx_Transc == UniquePulses(upp)) = NaN;
+            elseif (UniquePulses(upp) ~= 0) && (UniquePulses(upp) ~= IdxfirstIdx)
+                Pulse_Idx_Transc(Pulse_Idx_Transc == UniquePulses(upp)) = NaN;
+            end
+        end
+    end
+    
 %     % We might have not catch if some pulse trains were missing right at the begining
 %     % Check TTL pulses Idx we're expecting 0 value for the first 9 then 10,
 %     % 20...etc
@@ -213,7 +244,8 @@ Pulse_samp_audio = Pulse_samp_audio(Iaudio);
 File_number = File_number(Iaudio);
 % Outlayers are most likely indices that were not correctly decoded
 % resulting in obvious error in the Clock drift report
-Outsider_diff = find(abs(diff(Pulse_TimeStamp_Transc))> (nanmean(abs(diff(Pulse_TimeStamp_Transc))) + 4*nanstd(abs(diff(Pulse_TimeStamp_Transc))))); % identify indices of the derivative of Pulse_TimeStamp_Transc that are 4 standard deviation away from the mean
+AbsDiff_PTST = abs(diff(Pulse_TimeStamp_Transc));
+Outsider_diff = find((AbsDiff_PTST > (nanmean(AbsDiff_PTST)+ 4*nanstd(AbsDiff_PTST))) + (AbsDiff_PTST < nanmean(AbsDiff_PTST - 4*nanstd(AbsDiff_PTST)))); % identify indices of the derivative of Pulse_TimeStamp_Transc that are 4 standard deviation away from the mean
 % consecutive indices of the derivative that are away from the arevage
 % distribution correspond to outsider points that we can eliminate.
 Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative
@@ -236,7 +268,10 @@ Mean_std_x = cell(length(TTL_files),1);
 Mean_std_Pulse_TimeStamp_Transc = nan(length(TTL_files),2);
 Mean_std_Pulse_samp_audio = nan(length(TTL_files),2);
 FileNum_u = unique(File_number);
-for ff=1:length(TTL_files)
+if length(FileNum_u)~=length(TTL_files)
+    fprintf('There is no usable TTL pulse for TTL file %d, this file will not be alligned\n', setdiff(1:length(TTL_files), FileNum_u))
+end
+for ff=1:length(FileNum_u)
     Pulse_TimeStamp_Transc_local = Pulse_TimeStamp_Transc(File_number == FileNum_u(ff));
     Pulse_samp_audio_local = Pulse_samp_audio(File_number == FileNum_u(ff));
     Mean_std_Pulse_TimeStamp_Transc(ff,1) = nanmean(Pulse_TimeStamp_Transc_local);
@@ -287,6 +322,16 @@ CumNum_Samp_audiofile = cumsum(Num_Samp_audiofile(Isort,2));
 AudioSamp = Pulse_samp_audio + [zeros(sum(File_number==1),1); CumNum_Samp_audiofile(File_number(File_number>1)-1)];
 AudioTime = ((AudioSamp/FS - AudioSamp(1)/FS) + [zeros(sum(File_number==1),1);DelayFChange(File_number(File_number>1)-1)])*10^3;
 clock_differences_at_pulses = (Pulse_TimeStamp_Transc - Pulse_TimeStamp_Transc(1)) - AudioTime; % determine difference between transceiver and audio soundcard timestamps when pulses arrived
+
+fprintf('The following %d pulse indices were discarded:\n', length(Outsider_idx))
+Outsider_idx
+fprintf('Transciever values for these indices:\n')
+Outsider_idx_PTST
+fprintf('Audio samples for these indices:\n')
+Outsider_idx_PSA
+fprintf('Audio File numbers for these indices\n')
+Outsider_FileNumber
+ 
 
 figure
 hold on
