@@ -338,6 +338,7 @@ IndLT3 = strfind(Event_types_and_details{IndLT},'";');
 IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
 Dat_rootname = Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1));
 AllDatFiles = dir(fullfile(Input_folder, '*.dat'));
+Dat_rootname = strrep(Dat_rootname,'"',''); % remove uncessary quotation marks
 if ~strcmp(Dat_rootname, AllDatFiles(1).name(1:4))
     error('the root name for data files indicated in the log does not correspond to those in the folder:%s\n', Dat_rootname);
 end
@@ -437,16 +438,8 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
         % current interval that were originally logged with the
         % logger clock
         if strcmp(CD_Estimation, 'fit')
-            % centering and scaling data before doing the fit
-            CD_logger_stamps_localmean = nanmean(CD_logger_stamps(Ind_CD_local));
-            CD_logger_stamps_localstd = nanstd(CD_logger_stamps(Ind_CD_local));
-            CD_logger_stamps_zscore = (CD_logger_stamps(Ind_CD_local) - CD_logger_stamps_localmean)/CD_logger_stamps_localstd;
-            CD_sec_local_mean = nanmean(CD_sec_local);
-            CD_sec_local_std = nanstd(CD_sec_local);
-            CD_sec_local_zscore = (CD_sec_local - CD_sec_local_mean)/CD_sec_local_std;
-            [slope_and_intercept,~,mean_std_x]=polyfit(CD_logger_stamps_zscore, CD_sec_local_zscore, 1);
-            Event_timestamps_usec_local_zscore = (Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local)) - CD_logger_stamps_localmean)/CD_logger_stamps_localstd;
-            Estimated_CD(Ind_Logger_times_local)=1e6 * (CD_sec_local_std * polyval(slope_and_intercept,Event_timestamps_usec_local_zscore,[],mean_std_x) + CD_sec_local_mean);
+            slope_and_intercept=polyfit(CD_logger_stamps(Ind_CD_local)/mean(CD_logger_stamps(Ind_CD_local)), CD_sec_local, 1); % reduce magnitude of input for numerical stability
+            Estimated_CD(Ind_Logger_times_local)=1e6 * polyval(slope_and_intercept,Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local))/mean(CD_logger_stamps(Ind_CD_local)));
             % Estimate by fitting a line over the clock differences of
             % all the PC-generated comments in the current interval
         elseif strcmp(CD_Estimation, 'interpolation')
@@ -454,7 +447,7 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
             % Estimate by linearly interpolating between the clock
             % differences of each pair of consecutive PC-generated
             % comments; also extrapolates for time points before the
-            % first PC-generated comment or after the last          
+            % first PC-generated comment or after the last
         end
     end
     if any(isnan(Estimated_CD(Ind_Logger_times_local)))
@@ -561,7 +554,7 @@ if Save_voltage
         DataDeletionOnsetOffset_sample = cell(length(Nactive_channels),1);
     end
     
-    
+    dat_file_names = dir(fullfile(Input_folder,[Dat_rootname '*.DAT']));
     % Loop through channels then through files and extract data
     for active_channel_i=1:Nactive_channels
         % Loop through dat files and extract data
@@ -573,17 +566,16 @@ if Save_voltage
         Estimated_channelFS_Logger = nan(Nfiles-1,1); % The sample frequency in logger time can only be estimated up to the one but the last file
         Estimated_channelT_Transceiver = nan(Nfiles-1,1); % The sample frequency in transceiver time can only be estimated up to the one but the last file
         Estimated_channelT_Logger = nan(Nfiles-1,1); % The sample frequency in logger time can only be estimated up to the one but the last file
-    
+        
         for File_i=1:Nfiles % for each .DAT file
             % open the data file
             Str = 'index: ';
             IndLT2 = strfind(File_start_details{File_i},Str); %#ok<PFBNS>
             File_num_ID=File_start_details{File_i}((IndLT2+length(Str)): end); % eg. find "003" from "File started. File index: 003"
-            if length(File_num_ID)<4
-                File_num_ID = sprintf('%d%s',zeros(4-length(File_num_ID),1),File_num_ID);
-            end
+            fName_Ind = arrayfun(@(x) contains(x.name,File_num_ID),dat_file_names);
             fprintf('Channel %d/%d Reading file %d/%d: %s...\n',active_channel_i,Nactive_channels,File_i,Nfiles,File_num_ID);
-            File_name=[Dat_rootname File_num_ID '.DAT']; % eg. "NEUR_003.DAT"
+            File_name=dat_file_names(fName_Ind).name; % eg. "NEUR003.DAT"
+            
             if ~exist(fullfile(Input_folder,File_name),'file')
                 Missing_files(File_i)=1;
                 disp(['Cannot open ' File_name '; continuing to next file...']);
@@ -607,6 +599,7 @@ if Save_voltage
                 Samples_per_channel_per_file(active_channel_i)=length(File_data)/Num_channels;
                 AD_count_channeli_all_files=nan(1,Samples_per_channel_per_file(active_channel_i)*Nfiles); % the variable where all voltage data will be saved for that channel
                 Timestamps_first_samples_usec=nan(1,Nfiles); % the time stamps of the first sample of each file for that channel
+                Timestamps_first_samples_usec_Logger=nan(1,Nfiles); % the time stamps of the first sample of each file for that channel
                 % These are the only time stamps that will be saved if saving in
                 % the .mat format, because (1) these are the only time stamps the
                 % actual logs, (2) the time stamps of all samples can be
@@ -734,8 +727,10 @@ if Save_voltage
             
             if strcmp(FileOnsetTime, 'logfile') || File_i==Ind_first_file % take the time stamp of the first sample of a .DAT file from the event log if the user specifies so, or if the current file is the first file after starting recording
                 Timestamps_first_samples_usec(File_i)=File_start_timestamps(File_i)+Active_channels(active_channel_i)*ADC_sampling_period_usec_Logger; % time stamps of first sample of each of the channel; Jacob Vecht confirmed that the first sample of a file occurs at the file start time, unlike what was implied in the Neurologger manual (version 03-Apr-15 16:10:00)
+                Timestamps_first_samples_usec_Logger(File_i)=File_start_timestamps_LogRef(File_i)+Active_channels(active_channel_i)*ADC_sampling_period_usec_Logger; % Also store time stamps of first sample relative to logger clock
             elseif strcmp(FileOnsetTime, 'cal') % calculate the time stamp of the first sample of a .DAT file by counting the number of samples since recording start and multiplying by the sampling period
                 Timestamps_first_samples_usec(File_i)=File_timestamps_usec_from_sampling_period+Active_channels(active_channel_i)*ADC_sampling_period_usec_Logger;
+                Timestamps_first_samples_usec_Logger(File_i)=File_timestamps_usec_from_sampling_period_LogRef+Active_channels(active_channel_i)*ADC_sampling_period_usec_Logger;
             end
             
             % update the value for the index of the first file recorded after
@@ -924,6 +919,8 @@ if Save_voltage
             OUTDAT.Indices_of_first_and_last_samples=Ind_firstNlast_samples;
             OUTDAT.Estimated_channelFS_Transceiver = Estimated_channelFS_Transceiver; % Exact value of sample frequency for each file according to transceiver clock
             OUTDAT.Timestamps_of_first_samples_usec=Timestamps_first_samples_usec;
+            OUTDAT.Timestamps_of_first_samples_usec_Logger=Timestamps_first_samples_usec_Logger;
+            OUTDAT.CD_correction_data = struct('CD_logger_stamps',CD_logger_stamps(Ind_CD_local),'CD_sec',CD_sec_local,'Clock_difference_estimation',CD_Estimation);
             OUTDAT.Samples_per_channel_per_file=Samples_per_channel_per_file(active_channel_i);
             OUTDAT.Sampling_period_usec_Logger=1e6/FS;
             OUTDAT.AD_count_to_uV_factor=ADC2uV_resolution;
