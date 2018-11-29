@@ -438,8 +438,8 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
         % current interval that were originally logged with the
         % logger clock
         if strcmp(CD_Estimation, 'fit')
-            slope_and_intercept=polyfit(CD_logger_stamps(Ind_CD_local)/mean(CD_logger_stamps(Ind_CD_local)), CD_sec_local, 1); % reduce magnitude of input for numerical stability
-            Estimated_CD(Ind_Logger_times_local)=1e6 * polyval(slope_and_intercept,Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local))/mean(CD_logger_stamps(Ind_CD_local)));
+            slope_and_intercept=polyfit((CD_logger_stamps(Ind_CD_local)-mean(CD_logger_stamps(Ind_CD_local)))/std(CD_logger_stamps(Ind_CD_local)),CD_sec_local, 1); % reduce magnitude of input for numerical stability
+            Estimated_CD(Ind_Logger_times_local)=1e6 * polyval(slope_and_intercept,(Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local))-mean(CD_logger_stamps(Ind_CD_local)))/std(CD_logger_stamps(Ind_CD_local)));
             % Estimate by fitting a line over the clock differences of
             % all the PC-generated comments in the current interval
         elseif strcmp(CD_Estimation, 'interpolation')
