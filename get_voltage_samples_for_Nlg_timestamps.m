@@ -22,13 +22,21 @@
 % -requested_sample_idxs: sample numbers corresponding to the requested
 % timestamps to index in to the AD_counts vector.
 
-function requested_sample_idxs=get_voltage_samples_for_Nlg_timestamps(requested_timestamps_usec,indices_of_first_samples,timestamps_of_first_samples_usec,sampling_period_usec)
+function requested_sample_idxs=get_voltage_samples_for_Nlg_timestamps(requested_timestamps_usec,indices_of_first_samples,timestamps_of_first_samples_usec,samples_per_file,sampling_period_usec)
 
 n_requested_timestamps = length(requested_timestamps_usec);
 file_idxs = nan(1,n_requested_timestamps);
 requested_sample_idxs = nan(1,n_requested_timestamps);
+max_time = timestamps_of_first_samples_usec(end) + samples_per_file*sampling_period_usec;
 
 for k = 1:n_requested_timestamps
+    
+    if requested_timestamps_usec>max_time
+        requested_sample_idxs = [];
+        disp('WARNING: requested timestamp out of range of logger time')
+        return
+    end
+    
     current_file_idx = find(requested_timestamps_usec(k)>timestamps_of_first_samples_usec,1,'last');
     if isempty(current_file_idx)
         requested_sample_idxs = [];
