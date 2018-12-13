@@ -22,7 +22,9 @@
 % -requested_sample_idxs: sample numbers corresponding to the requested
 % timestamps to index in to the AD_counts vector.
 
-function requested_sample_idxs=get_voltage_samples_for_Nlg_timestamps(requested_timestamps_usec,indices_of_first_samples,timestamps_of_first_samples_usec,samples_per_file,sampling_period_usec)
+function requested_sample_idxs=get_voltage_samples_for_Nlg_timestamps(...
+    requested_timestamps_usec,indices_of_first_samples,timestamps_of_first_samples_usec,...
+    samples_per_file,sampling_period_usec)
 
 n_requested_timestamps = length(requested_timestamps_usec);
 file_idxs = nan(1,n_requested_timestamps);
@@ -32,20 +34,25 @@ max_time = timestamps_of_first_samples_usec(end) + samples_per_file*sampling_per
 for k = 1:n_requested_timestamps
     
     if requested_timestamps_usec>max_time
-        requested_sample_idxs = [];
         disp('WARNING: requested timestamp out of range of logger time')
-        return
+        continue
     end
     
     current_file_idx = find(requested_timestamps_usec(k)>timestamps_of_first_samples_usec,1,'last');
     if isempty(current_file_idx)
-        requested_sample_idxs = [];
         disp('WARNING: requested timestamp out of range of logger time')
-        return
+        continue
     end
     file_idxs(k) = current_file_idx;
     usec_from_first_sample_in_file = (requested_timestamps_usec(k) - timestamps_of_first_samples_usec(file_idxs(k)));
-    requested_sample_idxs(k) = indices_of_first_samples(file_idxs(k)) + round(usec_from_first_sample_in_file /sampling_period_usec);
+    sample_idx_in_file = round(usec_from_first_sample_in_file /sampling_period_usec);
+    
+    if sample_idx_in_file > samples_per_file
+        disp('WARNING: requested timestamp out of range of logger time')
+        continue
+    end
+    
+    requested_sample_idxs(k) = indices_of_first_samples(file_idxs(k)) + sample_idx_in_file;
 end
 
 
