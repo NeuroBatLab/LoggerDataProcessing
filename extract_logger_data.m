@@ -633,6 +633,9 @@ if Save_voltage
                 Ind_firstNlast_samples(File_i,1) = Ind_firstNlast_samples(File_i-1,2)+1;
             end
             Last_recorded_sample=find(diff(File_data),1,'last'); % the unwritten samples at the end of the file should all have differences between consecutive samples equal to 0, so the index of the last nonzero difference is the index of the last recorded sample
+            if isempty(Last_recorded_sample)
+                Last_recorded_sample = 1;
+            end
             if any(File_i==Ind_partial_files) % if the current .DAT file is partially filled unwritten samples are expected
                 if any(File_data(Last_recorded_sample+1:end)~=ADC_unwritten_data)
                     warning('Error finding the unwritten samples in File %s: the last consecutive data samples with same value (%d) does not equal the default value (%d).\n', File_num_ID, File_data(Last_recorded_sample+1), ADC_unwritten_data);
@@ -801,7 +804,8 @@ if Save_voltage
                 FreeTextTime = Event_timestamps_usec(FreeTextInd);
                 FreeTextTime = FreeTextTime(FreeTextTime<(StoppedRecTime-100000)); % Get rid of Free texts that were sent too close from or after the end of recordings (within 100ms before the Mode change is log on the event file the recording already stopped)
                 FreeTextTime = FreeTextTime(FreeTextTime>StartedRecTime); % Get rid of Free texts that were sent before the begining of recordings
-                FreeTextSamples=get_voltage_samples_for_Nlg_timestamps(FreeTextTime,Ind_firstNlast_samples(:,1),Timestamps_first_samples_usec,10^6/nanmean(Estimated_channelFS_Transceiver));
+                FreeTextSamples=get_voltage_samples_for_Nlg_timestamps(FreeTextTime,Ind_firstNlast_samples(:,1),Timestamps_first_samples_usec,Samples_per_channel_per_file(active_channel_i),10^6/nanmean(Estimated_channelFS_Transceiver));
+                FreeTextSamples = FreeTextSamples(~isnan(FreeTextSamples));
                 DataDeletionOnsetOffset_usec{active_channel_i} = nan(length(FreeTextSamples),2);
                 DataDeletionOnsetOffset_sample{active_channel_i} = nan(length(FreeTextSamples),2);
                 % calculate the average voltage in the preceding 5ms and
@@ -855,7 +859,8 @@ if Save_voltage
                 SystCheckTime = SystCheckTime(~isnan(SystCheckTime)); % Get rid of nan values
                 SystCheckTime = SystCheckTime(SystCheckTime<(StoppedRecTime-100000)); % Get rid of system checks that are too close from the end of recordings (within 100ms before the Mode change is log on the event file the recording already stopped)
                 SystCheckTime = SystCheckTime(SystCheckTime>StartedRecTime); % Get rid of system checks that were sent before the begining of recordings
-                SystCheckSamples=get_voltage_samples_for_Nlg_timestamps(SystCheckTime,Ind_firstNlast_samples(:,1),Timestamps_first_samples_usec,10^6/nanmean(Estimated_channelFS_Transceiver));
+                SystCheckSamples=get_voltage_samples_for_Nlg_timestamps(SystCheckTime,Ind_firstNlast_samples(:,1),Timestamps_first_samples_usec,Samples_per_channel_per_file(active_channel_i),10^6/nanmean(Estimated_channelFS_Transceiver));
+                SystCheckSamples = SystCheckSamples(~isnan(SystCheckSamples));
                 DataDeletionOnsetOffset_sample{active_channel_i} = [DataDeletionOnsetOffset_sample{active_channel_i}; nan(length(SystCheckSamples),2)];
                 DataDeletionOnsetOffset_usec{active_channel_i} = [DataDeletionOnsetOffset_usec{active_channel_i}; nan(length(SystCheckSamples),2)];
                 % calculate the average voltage in the preceding [-1s -800ms] and
