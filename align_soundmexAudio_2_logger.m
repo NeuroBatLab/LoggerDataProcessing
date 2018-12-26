@@ -192,7 +192,22 @@ Transceiver_time_dfall1 = unique(cell2mat(Transceiver_time_dfall1));
 
 % restrict the dataset to the time frame we want to look at
 if length(OnsetTime)>1 || length(OffsetTime)>1
-    error('the recording was re-started')
+    if length(OnsetTime)>1
+        fprintf(1,'%d Onset times where detected for all voc reward start, indicate which on eyou want to select:\n', length(OnsetTime))
+        for oo=1:length(OnsetTime)
+            fprintf(1,'%d. %d\n', oo, OnsetTime(oo));
+        end
+        OnInd = input('Your choice:');
+        OnsetTime = OnsetTime(OnInd);
+    end
+    if length(OffsetTime)>1
+        fprintf(1,'%d Offset times where detected for all voc reward start, indicate which on eyou want to select:\n', length(OffsetTime))
+        for oo=1:length(OffsetTime)
+            fprintf(1,'%d. %d\n', oo, OffsetTime(oo));
+        end
+        OffInd = input('Your choice:');
+        OffsetTime = OffsetTime(OffInd);
+    end
 end    
 Transceiver_time_drise1=Transceiver_time_drise1(logical((Transceiver_time_drise1>OnsetTime) .* (Transceiver_time_drise1<OffsetTime)));
 Transceiver_time_dfall1=Transceiver_time_dfall1(logical((Transceiver_time_dfall1>OnsetTime) .* (Transceiver_time_dfall1<OffsetTime)));
