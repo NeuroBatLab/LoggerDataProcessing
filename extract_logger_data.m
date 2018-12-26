@@ -342,6 +342,9 @@ IndLT3 = strfind(Event_types_and_details{IndLT},'";');
 IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
 Dat_rootname = Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1));
 AllDatFiles = dir(fullfile(Input_folder, '*.dat'));
+if isempty(AllDatFiles)
+    AllDatFiles = dir(fullfile(Input_folder, '*.DAT'));
+end
 Dat_rootname = strrep(Dat_rootname,'"',''); % remove uncessary quotation marks
 if ~strcmp(Dat_rootname, AllDatFiles(1).name(1:4))
     error('the root name for data files indicated in the log does not correspond to those in the folder:%s\n', Dat_rootname);
