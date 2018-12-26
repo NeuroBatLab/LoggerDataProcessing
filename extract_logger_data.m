@@ -129,7 +129,11 @@ disp(['Processing the data in "' Input_folder '"...'])
 
 %% Extract parameters specific to the Logger used from the log file
 % Read the event log file.
-FID = fopen(fullfile(Input_folder,'EVENTLOG.csv'));
+EventLogFile = fullfile(Input_folder,'EVENTLOG.csv');
+if ~exist(EventLogFile,'file')
+    EventLogFile = fullfile(Input_folder,'EVENTLOG.CSV');
+end
+FID = fopen(EventLogFile);
 Exp_info = textscan(FID, '%s',3,'Delimiter','\r'); %#ok<NASGU> % The three first lines are old settings of the experiment that are not relevant anymore
 Header = textscan(FID, '%s %s %s %s %s %s',1, 'Delimiter', ',');
 Data = textscan(FID, '%s %s %f %s %s %s', 'Delimiter', ',');
