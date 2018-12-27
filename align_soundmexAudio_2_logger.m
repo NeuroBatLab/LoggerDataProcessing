@@ -193,7 +193,7 @@ Transceiver_time_dfall1 = unique(cell2mat(Transceiver_time_dfall1));
 % restrict the dataset to the time frame we want to look at
 if length(OnsetTime)>1 || length(OffsetTime)>1
     if length(OnsetTime)>1
-        fprintf(1,'%d Onset times where detected for all voc reward start, indicate which on eyou want to select:\n', length(OnsetTime))
+        fprintf(1,'%d Onset times where detected for all voc reward start, indicate which one you want to select:\n', length(OnsetTime))
         for oo=1:length(OnsetTime)
             fprintf(1,'%d. %d\n', oo, OnsetTime(oo));
         end
@@ -201,7 +201,7 @@ if length(OnsetTime)>1 || length(OffsetTime)>1
         OnsetTime = OnsetTime(OnInd);
     end
     if length(OffsetTime)>1
-        fprintf(1,'%d Offset times where detected for all voc reward start, indicate which on eyou want to select:\n', length(OffsetTime))
+        fprintf(1,'%d Offset times where detected for all voc reward start, indicate which one you want to select:\n', length(OffsetTime))
         for oo=1:length(OffsetTime)
             fprintf(1,'%d. %d\n', oo, OffsetTime(oo));
         end
