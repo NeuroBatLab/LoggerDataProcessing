@@ -67,90 +67,116 @@ Pulse_samp_audio = cell(length(TTL_files),1); % This cell array will contain the
 Num_Samp_audiofile = nan(length(TTL_files),2); % First column is file ID, second is number of samples
 
 for w = 1:length(TTL_files) % run through all .WAV files and extract audio data and TTL status at each sample
-%     if ~strcmp(Wav_files(w).name(end-4), TTL_files(w).name(end-4))
-%         error('There is an error in audio files. Each Audio file should have a twin brother TTL file and here:\n%s\n%s\n', Wav_files(w).name, TTL_files(w).name);
-%     end
-    [Ttl_status, FS] = audioread([Audio_dir filesep TTL_files(w).name]);
-    
-    Num_Samp_audiofile(w,2)= length(Ttl_status);
-    if strcmp(TTL_pulse_generator, 'MOTU')
-        TTLHigh = find(diff(Ttl_status)>0.5)+1; % identify the increases in volatge
-        TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
-        TTLLow = find(diff(Ttl_status)<-0.80)+1; % identify the decreases in volatge
-        TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
-        if length(TTLHigh)>length(TTLLow)% Try a lower threshold we are missing some pulses
-            TTLLow = find(diff(Ttl_status)<-0.70)+1; % identify the decreases in volatge
-            TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
-            if length(TTLHigh)~=length(TTLLow)%
-                error('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
-            end
-        end
-        Pulse_dur_ms = (TTLLow - TTLHigh)/TTL_param.Base_ttl_length; % duration of each pulse in ms
-        InterPulse_dur_ms = (TTLHigh(2:end) - TTLLow(1:end-1))/TTL_param.Base_ttl_length; % duration between each pulse in ms (length(InterPulse_dur_ms)=length(Pulse_dur_ms)-1)
-        PulseTrainInd = [1; find(round(InterPulse_dur_ms) ~= TTL_param.IPI)+1]; % these are the indices of the elements in Pulse_dur_ms that correspond to the first digit coded by pulse trains
-        if unique(round(InterPulse_dur_ms(PulseTrainInd(2:end)-1)/10^3)) ~= TTL_param.IPTI
-            fprintf(1, 'Observed inter-train of pulses intervals in seconds:\n')
-            unique(round(InterPulse_dur_ms(PulseTrainInd(2:end)-1)/10^3))
-            error('trains of pulses are not spaced by the expected InterPulseTrain interval of %d seconds\n', TTL_param.IPTI);
-        end
-        % Check that PulseTrainInd is what we expect to be
-        NPulses = length(PulseTrainInd);
-        if any(TTLHigh(PulseTrainInd)' ~= TTLHigh(1) + FS*TTL_param.IPTI*(0:(NPulses-1)))
-            error('The TTL pulses are not correctly detected, they are not where we expect them to be!\n')
-        end
-        % Now extract the pulses indices coded in the trains of pulses'
-        % durations
-        Digits = cell(NPulses,1);
-        for pp=1:NPulses
-            if pp==NPulses % special case for the last pulse
-                Digits{pp} = int2str(round(Pulse_dur_ms(PulseTrainInd(pp) :end)' - TTL_param.Min_ttl_length));
-            else
-                Digits{pp} = int2str(round(Pulse_dur_ms(PulseTrainInd(pp):PulseTrainInd(pp+1)-1)' - TTL_param.Min_ttl_length));
-            end
-        end
-        Pulse_idx_audio{w} = cell2mat(cellfun(@(X) str2double(regexprep(X, ' ','')), Digits, 'UniformOutput',0));
-    elseif strcmp(TTL_pulse_generator, 'Avisoft')
-        TTLHigh = find(abs(diff(Ttl_status))>0.2)+1; % identify the increases in volatge
-        TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
-        TTLHigh((find(diff(TTLHigh)==2))+1)=[]; % eliminate almost consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
-        DiffTTL = round(diff(TTLHigh)/FS*TTL_param.Base_ttl_length);
-        TTLHigh(find(DiffTTL<TTL_param.Min_ttl_length))=[]; % eliminate detection artefacts
-        DiffTTL = round(diff(TTLHigh)/FS*TTL_param.Base_ttl_length);
-        PulseTrainInd = [1; find(round(DiffTTL/TTL_param.Base_ttl_length)>=(TTL_param.IPTI-0.5))+1];% these are the indices of the elements in TTLHigh that correspond to the first digit coded by pulse trains
-        Pulse_dur_ms = DiffTTL(DiffTTL<TTL_param.IPI);% duration of each pulse in ms
-        InterPulse_dur_ms = DiffTTL(DiffTTL>=TTL_param.IPI);% duration between each pulse in ms (length(InterPulse_dur_ms)=length(Pulse_dur_ms)-1)
-        Pulse_dur_TrainInd = [1; find(round(InterPulse_dur_ms) ~= TTL_param.IPI)+1]; % these are the indices of the elements in Pulse_dur_ms that correspond to the first digit coded by pulse trains
-        if unique(round(InterPulse_dur_ms(Pulse_dur_TrainInd(2:end)-1)/10^3)) ~= TTL_param.IPTI
-            fprintf(1, 'Observed inter-train of pulses intervals in seconds:\n')
-            unique(round(InterPulse_dur_ms(Pulse_dur_TrainInd(2:end)-1)/10^3))
-            error('trains of pulses are not spaced by the expected InterPulseTrain interval of %d seconds\n', TTL_param.IPTI);
-        end
-        % Now extract the pulses indices coded in the trains of pulses'
-        % durations
-        NPulses = length(PulseTrainInd);
-        Digits = cell(NPulses,1);
-        for pp=1:NPulses
-            if pp==NPulses % special case for the last pulse
-                Digits{pp} = int2str(round(Pulse_dur_ms(Pulse_dur_TrainInd(pp) :end)' - TTL_param.Min_ttl_length));
-            else
-                Digits{pp} = int2str(round(Pulse_dur_ms(Pulse_dur_TrainInd(pp):Pulse_dur_TrainInd(pp+1)-1)' - TTL_param.Min_ttl_length));
-            end
-        end
-        Pulse_idx_audio{w} = cell2mat(cellfun(@(X) str2double(regexprep(X, ' ','')), Digits, 'UniformOutput',0));
+    %     if ~strcmp(Wav_files(w).name(end-4), TTL_files(w).name(end-4))
+    %         error('There is an error in audio files. Each Audio file should have a twin brother TTL file and here:\n%s\n%s\n', Wav_files(w).name, TTL_files(w).name);
+    %     end
+    fprintf('TTL file %d/%d\n', w, length(TTL_files));
+    Ind_ = strfind(TTL_files(w).name, '_');
+    CurrentFile = dir(fullfile(Audio_dir, sprintf('%s%d.wav',TTL_files(w).name(1:Ind_(end)),w)));
+    try
+        [Ttl_status, FS] = audioread(fullfile(CurrentFile.folder, CurrentFile.name));
+    catch
+        fprintf('Error with the TTL file: %s\nNo allignment for these data\n',CurrentFile.name)
+        Ttl_status = [];
     end
     
-    % identify the TTL file ID
-    Ind_b = strfind(TTL_files(w).name, '_');
-    Ind_e = strfind(TTL_files(w).name, '.wav');
-    Num_Samp_audiofile(w,1)=str2double(TTL_files(w).name(Ind_b(end)+1 : Ind_e-1));
-    File_number{w} = ones(length(Digits),1)*Num_Samp_audiofile(w,1);
-    
-    % save the 1st sample of each pulse train
-    Pulse_samp_audio{w} = TTLHigh(PulseTrainInd);
+    if ~isempty(Ttl_status)
+        Num_Samp_audiofile(w,2)= length(Ttl_status);
+        if strcmp(TTL_pulse_generator, 'MOTU')
+            TTLHigh = find(diff(Ttl_status)>0.5)+1; % identify the increases in volatge
+            TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+            TTLLow = find(diff(Ttl_status)<-0.80)+1; % identify the decreases in volatge
+            TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+            if length(TTLHigh)>length(TTLLow)% Try a lower threshold we are missing some pulses
+                TTLLow = find(diff(Ttl_status)<-0.70)+1; % identify the decreases in volatge
+                TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+                if length(TTLHigh)~=length(TTLLow)%
+                    error('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
+                end
+            end
+            Pulse_dur_ms = (TTLLow - TTLHigh)/TTL_param.Base_ttl_length; % duration of each pulse in ms
+            InterPulse_dur_ms = (TTLHigh(2:end) - TTLLow(1:end-1))/TTL_param.Base_ttl_length; % duration between each pulse in ms (length(InterPulse_dur_ms)=length(Pulse_dur_ms)-1)
+            PulseTrainInd = [1; find(round(InterPulse_dur_ms) ~= TTL_param.IPI)+1]; % these are the indices of the elements in Pulse_dur_ms that correspond to the first digit coded by pulse trains
+            if unique(round(InterPulse_dur_ms(PulseTrainInd(2:end)-1)/10^3)) ~= TTL_param.IPTI
+                fprintf(1, 'Observed inter-train of pulses intervals in seconds:\n')
+                unique(round(InterPulse_dur_ms(PulseTrainInd(2:end)-1)/10^3))
+                error('trains of pulses are not spaced by the expected InterPulseTrain interval of %d seconds\n', TTL_param.IPTI);
+            end
+            % Check that PulseTrainInd is what we expect to be
+            NPulses = length(PulseTrainInd);
+            if any(TTLHigh(PulseTrainInd)' ~= TTLHigh(1) + FS*TTL_param.IPTI*(0:(NPulses-1)))
+                error('The TTL pulses are not correctly detected, they are not where we expect them to be!\n')
+            end
+            % Now extract the pulses indices coded in the trains of pulses'
+            % durations
+            Digits = cell(NPulses,1);
+            for pp=1:NPulses
+                if pp==NPulses % special case for the last pulse
+                    Digits{pp} = int2str(round(Pulse_dur_ms(PulseTrainInd(pp) :end)' - TTL_param.Min_ttl_length));
+                else
+                    Digits{pp} = int2str(round(Pulse_dur_ms(PulseTrainInd(pp):PulseTrainInd(pp+1)-1)' - TTL_param.Min_ttl_length));
+                end
+            end
+            Pulse_idx_audio{w} = cell2mat(cellfun(@(X) str2double(regexprep(X, ' ','')), Digits, 'UniformOutput',0));
+        elseif strcmp(TTL_pulse_generator, 'Avisoft')
+            TTLHigh = find(abs(diff(Ttl_status))>0.2)+1; % identify the increases in volatge
+            TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+            TTLHigh((find(diff(TTLHigh)==2))+1)=[]; % eliminate almost consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+            DiffTTL = round(diff(TTLHigh)/FS*TTL_param.Base_ttl_length);
+            TTLHigh(find(DiffTTL<TTL_param.Min_ttl_length))=[]; % eliminate detection artefacts
+            DiffTTL = round(diff(TTLHigh)/FS*TTL_param.Base_ttl_length);
+            PulseTrainInd = [1; find(round(DiffTTL/TTL_param.Base_ttl_length)>=(TTL_param.IPTI-0.5))+1];% these are the indices of the elements in TTLHigh that correspond to the first digit coded by pulse trains
+            
+            
+%             Pulse_dur_ms = DiffTTL(DiffTTL<TTL_param.IPI);% duration of each pulse in ms
+            InterPulse_dur_ms = DiffTTL(DiffTTL>=TTL_param.IPI);% duration between each pulse in ms (length(InterPulse_dur_ms)=length(Pulse_dur_ms)-1)
+            Pulse_dur_TrainInd = [1; intersect(find(round(InterPulse_dur_ms) ~= TTL_param.IPI),find(round(InterPulse_dur_ms/TTL_param.Base_ttl_length) == TTL_param.IPTI))+1]; % these are the indices of the elements in Pulse_dur_ms that correspond to the first digit coded by pulse trains
+            if unique(round(InterPulse_dur_ms(Pulse_dur_TrainInd(2:end)-1)/10^3)) ~= TTL_param.IPTI
+                fprintf(1, 'Observed inter-train of pulses intervals in seconds:\n')
+                unique(round(InterPulse_dur_ms(Pulse_dur_TrainInd(2:end)-1)/10^3))
+                error('trains of pulses are not spaced by the expected InterPulseTrain interval of %d seconds\n', TTL_param.IPTI);
+            end
+            % Now extract the pulses indices coded in the trains of pulses'
+            % durations
+            NPulses = length(PulseTrainInd);
+            Digits = cell(NPulses,1);
+            for pp=1:NPulses
+                if pp==NPulses % special case for the last pulse
+                    Pulse_dur_ms = DiffTTL(PulseTrainInd(pp):end);
+                else
+                    Pulse_dur_ms = DiffTTL(PulseTrainInd(pp):(PulseTrainInd(pp+1)-2));
+                end
+                Pulse_dur_ms = Pulse_dur_ms(Pulse_dur_ms<TTL_param.IPI);
+                Digits{pp} = int2str(round(Pulse_dur_ms)' - TTL_param.Min_ttl_length);
+            end
+            Pulse_idx_audio{w} = cell2mat(cellfun(@(X) str2double(regexprep(X, ' ','')), Digits, 'UniformOutput',0));
+        end
+        
+        % identify the TTL file ID
+        Ind_b = strfind(CurrentFile.name, '_');
+        Ind_e = strfind(CurrentFile.name, '.wav');
+        Num_Samp_audiofile(w,1)=str2double(CurrentFile.name(Ind_b(end)+1 : Ind_e-1));
+        File_number{w} = ones(length(Digits),1)*Num_Samp_audiofile(w,1);
+        
+        % save the 1st sample of each pulse train
+        Pulse_samp_audio{w} = TTLHigh(PulseTrainInd);
+    end
 end
 Pulse_idx_audio = cell2mat(Pulse_idx_audio);
 Pulse_samp_audio = cell2mat(Pulse_samp_audio);
 File_number = cell2mat(File_number);
+
+% Check if several pulses have the same value, the first one is most
+% probably the good one
+[~,IP,~] = unique(Pulse_idx_audio);
+Duplicates = setdiff(1:length(Pulse_idx_audio),IP);
+if sum(Pulse_idx_audio(Pulse_idx_audio(Duplicates))==Pulse_idx_audio(Duplicates))==length(Duplicates)
+    Pulse_idx_audio(Duplicates)=[];
+    Pulse_samp_audio(Duplicates)=[];
+    File_number(Duplicates)=[];
+else
+    warning('There are some Duplicates in the sound TTL indices that might cause issues!\n');
+end
 
 %% extract TTL status change from the event log generated by Deuteron and extracted by extract_logger_data
 % find eventfile from all loggers (TTL pulses are logged in
@@ -372,7 +398,6 @@ for ff=1:length(FileNum_u)
         F=figure();
     else
         clf(F)
-        F=figure();
     end
     plot(Pulse_samp_audio_local, Pulse_TimeStamp_Transc_local, 'bo')
     hold on
