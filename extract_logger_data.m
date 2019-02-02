@@ -93,14 +93,18 @@
 % 'CheckSpike'      switch to plot detected spike at each step fo the
 %                           detection and sorting process. Default = 0;
 
+% 'Active_channels' List of channels on which should be done the
+%                   extraction, default is empty, which force the code to
+%                   take the values given by Deuteron eventfile.
+
 % Code inspired from Wujie Zhang function extract_Nlg_data and Maimon Rose function extract_audio_data. Written by
 % Julie Elie
 last_code_update='11/03/2018, Julie Elie'; % identifies the version of the code
 
 %% Sorting input arguments
-pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike'};
-dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50,0};
-[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','Active_channels'};
+dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50,0,[]};
+[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike,Active_channels] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 if strcmp(EventFile, 'one_file')
     Save_event_file=1;
@@ -267,7 +271,7 @@ else
 end
 
 % Get the active channel list if more than one channel
-if Num_channels>1
+if Num_channels>1 && isempty(Active_channels)
     Str = 'Channel Map = ';
     IndLT = find(contains(Event_types_and_details,Str),1);
     IndLT2 = strfind(Event_types_and_details{IndLT},Str);
