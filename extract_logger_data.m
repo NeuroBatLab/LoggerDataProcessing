@@ -102,7 +102,7 @@
 last_code_update='11/03/2018, Julie Elie'; % identifies the version of the code
 
 %% Sorting input arguments
-pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','Active_channels'};
+pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','ActiveChannels'};
 dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50,0,[]};
 [Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike,Active_channels] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
@@ -278,7 +278,7 @@ if Num_channels>1 && isempty(Active_channels)
     IndLT3 = strfind(Event_types_and_details{IndLT},';');
     IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
     Active_channels = sort(str2num(Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1)))); %#ok<ST2NM>
-else
+elseif isempty(Active_channels)
     Active_channels = 0;
 end
 
