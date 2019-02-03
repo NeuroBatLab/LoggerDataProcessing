@@ -44,6 +44,12 @@ for Tetrode_i=1:Num_tetrodes % for each of the electrode bundles, eg. tetrodes
         % as follows
         ADBitVolts=500/(32767*10^6); % 32767 is the largest number that can be represented as a signed 16-bit integer, which SpikeSort3D requires to be mapped to the upper bound of the voltage data, which we have picked to be 500 uV here, so that the voltage axis during preview has reasonable scales
         Waveforms_to_export_AD_counts=round(Snippets./(ADBitVolts*10^6)); % the AD counts here, multiplied by the "ADBitVolts" factor above, equals voltages in V
+        Dim_data = size(Waveforms_to_export_AD_counts);
+        if Dim_data(2) == 3 % Neuralynx is not happy when one channel of a tetrode is missing, complete with NaN the 4th dimension
+            fprintf(1,'This tetrode misses a 4th dimension (channel inactive), a NaN vector is added to fill in that 4th channel\n');
+            A = nan(Dim_data(1),1,Dim_data(3));
+            Waveforms_to_export_AD_counts = [Waveforms_to_export_AD_counts A];
+        end
         NTT_header={'######## Neuralynx Data File Header';'-ADMaxValue 32767';['-ADBitVolts ' sprintf('%.24f',ADBitVolts) ' ' sprintf('%.24f',ADBitVolts) ' ' sprintf('%.24f',ADBitVolts) ' ' sprintf('%.24f',ADBitVolts)]}; % the string repetitions of "ADBitVolts" are for the different channels; the number is saved into the header with 24 digits after the decimal point, as the Neuralynx recording system does; note that this does no round to the 24th digit after the decimal point, which is OK when "ADBitVolts" is 500/(32767*10^6), but needs to be checked if a different voltage upper bound is used
         
         Mat2NlxSpike(NTT_Filename,AppendToFileFlag,ExportMode,ExportModeVector,FieldSelectionFlags,Spike_arrival_times',cluster_numbers,Waveforms_to_export_AD_counts,NTT_header)
