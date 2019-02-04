@@ -393,10 +393,10 @@ Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
 
 % Work between clock synchronization events or onset/offset events. It is assumed that the drift
 % is mostly linear between these synchronization events.
-Ind_Start = find(contains(Event_types_and_details,'Started recording'),1);
-Ind_Stop = find(contains(Event_types_and_details,'Stopped recording'),1);
-Ind_Sync = sort([Ind_Start; Ind_Stop; find(contains(Event_types_and_details,'Clocks synchronized')); length(Event_types_and_details)]); % synchronization evenst, and the first and last event
-Ind_Sync = Ind_Sync(Ind_Sync>= Ind_Start); 
+Ind_Start = find(contains(Event_types_and_details,'Started recording'));
+Ind_Stop = find(contains(Event_types_and_details,'Stopped recording'));
+Ind_Sync = sort([Ind_Start; Ind_Stop; find(contains(Event_types_and_details,'Clocks synchronized')); length(Event_types_and_details)]); % synchronization evenst,the first recording and last event
+Ind_Sync = Ind_Sync(Ind_Sync>= Ind_Start(1)); 
 Ind_Logger_times=find(contains(Event_timestamps_source,'Logger')); % events originally logged with logger time stamps
 Estimated_CD=nan(length(Ind_Logger_times),1); % estimated clock difference for the logger time stamps identified by Ind_Logger_times 
  
@@ -411,8 +411,8 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     if contains(Event_types_and_details(Ind_Sync(unsync_i)),'Clocks synchronized')
         Ind_CD_local=find(Ind_CD>Ind_Sync(unsync_i) & Ind_CD<Ind_Sync(unsync_i+1) & ~isnan(CD_sec)); % all the events in the current interval when clock difference was reported and not NaN (ignore when Deuteron software gives weird blank output (e.g. CD=--))
     elseif contains(Event_types_and_details(Ind_Sync(unsync_i)),'Started recording')
-        Ind_CD_local=find(Ind_CD>Ind_Start & Ind_CD<Ind_Sync(unsync_i+1) & ~isnan(CD_sec));
-        Ind_CD_local = [find(Ind_CD<Ind_Start & Ind_CD>1,1,'last'); Ind_CD_local]; %#ok<AGROW> % add just the previous clock drift measurement before the start of the recording
+        Ind_CD_local=find(Ind_CD>Ind_Sync(unsync_i) & Ind_CD<Ind_Sync(unsync_i+1) & ~isnan(CD_sec));
+        Ind_CD_local = [find(Ind_CD<Ind_Sync(unsync_i) & Ind_CD>1,1,'last'); Ind_CD_local]; %#ok<AGROW> % add just the previous clock drift measurement before the start of the recording
     end
     CD_sec_local = CD_sec(Ind_CD_local);
  
