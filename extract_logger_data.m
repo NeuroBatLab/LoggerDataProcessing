@@ -481,6 +481,7 @@ CD_transceiver_stamps=CD_logger_stamps-CD_sec*1e6;
 
 % plot the result of clock difference correction to check for mistakes
 Figure1 = figure(1);
+cla(Figure1)
 hold on
 legend('Location','best', 'AutoUpdate', 'on')
 plot((CD_transceiver_stamps-LoggerTime_ref)/(1e6*60), CD_sec*1e3,'r+', 'DisplayName','Recorded clock differences') % transceiver stamps in min at clock difference reports vs. the reported clock differences that were used for estimation
