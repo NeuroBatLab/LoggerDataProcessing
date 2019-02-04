@@ -391,10 +391,11 @@ CD_sec(Outsider_local)= NaN; % replace that clock drift report by NaN in the who
 Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
 
 
-% Work between clock synchronization events. It is assumed that the drift
+% Work between clock synchronization events or onset/offset events. It is assumed that the drift
 % is mostly linear between these synchronization events.
 Ind_Start = find(contains(Event_types_and_details,'Started recording'),1);
-Ind_Sync = sort([Ind_Start; find(contains(Event_types_and_details,'Clocks synchronized')); length(Event_types_and_details)]); % synchronization evenst, and the first and last event
+Ind_Stop = find(contains(Event_types_and_details,'Stopped recording'),1);
+Ind_Sync = sort([Ind_Start; Ind_Stop; find(contains(Event_types_and_details,'Clocks synchronized')); length(Event_types_and_details)]); % synchronization evenst, and the first and last event
 Ind_Sync = Ind_Sync(Ind_Sync>= Ind_Start); 
 Ind_Logger_times=find(contains(Event_timestamps_source,'Logger')); % events originally logged with logger time stamps
 Estimated_CD=nan(length(Ind_Logger_times),1); % estimated clock difference for the logger time stamps identified by Ind_Logger_times 
