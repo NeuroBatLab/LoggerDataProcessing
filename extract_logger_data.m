@@ -97,14 +97,20 @@
 %                   extraction, default is empty, which force the code to
 %                   take the values given by Deuteron eventfile.
 
+% AutoSpikeThreshFactor: the threshold for detecting spikes in detect_spikes.m
+%                           is this number times the estimated
+%                               noise standard deviation, automatic threshold is selected
+%                               in SpikeThreshMethod; Rey et al. (2015, Brain Res Bull)
+%                               recommends 3 to 5. Default set to 3.
+
 % Code inspired from Wujie Zhang function extract_Nlg_data and Maimon Rose function extract_audio_data. Written by
 % Julie Elie
 last_code_update='11/03/2018, Julie Elie'; % identifies the version of the code
 
 %% Sorting input arguments
-pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','ActiveChannels'};
-dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50,0,[]};
-[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike,Active_channels] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','ActiveChannels', 'AutoSpikeThreshFactor'};
+dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50,0,[],3};
+[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike,Active_channels, AutoSpikeThreshFactor] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 if strcmp(EventFile, 'one_file')
     Save_event_file=1;
@@ -919,9 +925,9 @@ if Save_voltage
                 % If Neural data, extract position of potential spike on
                 % the voltage trace that was cleaned from the RF Artifacts
                 if sum(Missing_files)
-                    [Peaks_positions, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples, 'MissingFiles',find(Missing_files));
+                    [Peaks_positions, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples, 'MissingFiles',find(Missing_files),'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
                 else
-                    [Peaks_positions, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples);
+                    [Peaks_positions, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples,'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
                 end
             end    
             
