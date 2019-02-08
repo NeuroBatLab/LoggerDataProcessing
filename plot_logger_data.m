@@ -220,7 +220,7 @@ for ll=1:NLog
         StopSamp = round(RecOffSamp + (Stop-RecOffTime*10^-6)*EstimatedFS{ll});
         
         % extract the snippet of sound
-        SnipData{ll} = Data.AD_count_int16(StartSamp:StopSamp) - mean(Data.AD_count_int16);
+        SnipData{ll} = double(Data.AD_count_int16(StartSamp:StopSamp));
     end
 end
 
