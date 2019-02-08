@@ -236,7 +236,7 @@ end
 fprintf(1, '*** Plot data ***\n')
 % Raw waveforms first
 figure(2)
-cla
+clf
 MaxWaveform = nan(NLog,1);
 for ll=1:NLog
     if iscell(SnipData{ll}) && strcmp(NeuralPlotMode, 'power') % This is a neural logger and we plot the power of each electrode
@@ -299,7 +299,7 @@ end
 % Then the spectrograms
 dBScale = 60;
 figure(3)
-cla
+clf
 MaxCmap = nan(NLog,1);
 for ll=1:NLog
     if iscell(SnipData{ll})  && strcmp(NeuralPlotMode, 'power') % This is a neural logger and we plot the power of each electrode
@@ -376,21 +376,21 @@ for ll=1:NLog
         ss=subplot(NLog,1, ll);
         subplot(NLog,1, ll)
         colormap(ss, hot)
-    else
-        ss=subplot(NLog,1,ll);
-        subplot(NLog,1,ll)
-        axis xy;
-        caxis('manual');
-        caxis([MaxB-dBScale MaxB]);
-        cmap = spec_cmap();
-        colormap(ss, cmap);
-        colorbar
-        if Manual
-            pause(0.1)
-            Player= audioplayer((SnipData{ll}-mean(SnipData{ll}))/std(SnipData{ll}), EstimatedFS{ll}); %#ok<TNMLP>
-            play(Player)
-            pause(1)
-        end
+%     else
+%         ss=subplot(NLog,1,ll);
+%         subplot(NLog,1,ll)
+%         axis xy;
+%         caxis('manual');
+%         caxis([MaxB-dBScale MaxB]);
+%         cmap = spec_cmap();
+%         colormap(ss, cmap);
+%         colorbar
+%         if Manual
+%             pause(0.1)
+%             Player= audioplayer((SnipData{ll}-mean(SnipData{ll}))/std(SnipData{ll}), EstimatedFS{ll}); %#ok<TNMLP>
+%             play(Player)
+%             pause(1)
+%         end
     end
 end
 
