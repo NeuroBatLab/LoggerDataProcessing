@@ -297,11 +297,6 @@ for ll=1:NLog
 end
 
 % Then the spectrograms
-% design the filters
-[z,p,k] = butter(6,BandPassFilter_spec(1:2)/(EstimatedFS{ll}/2),'bandpass');
-sos_low = zp2sos(z,p,k);
-[z,p,k] = butter(6,BandPassFilter_spec(2:3)/(EstimatedFS{ll}/2),'bandpass');
-sos_high = zp2sos(z,p,k);
 dBScale = 60;
 figure(3)
 cla
@@ -348,7 +343,11 @@ for ll=1:NLog
         hold off
     else
         subplot(NLog,1,ll)
-        
+        % design the filters
+        [z,p,k] = butter(6,BandPassFilter_spec(1:2)/(EstimatedFS{ll}/2),'bandpass');
+        sos_low = zp2sos(z,p,k);
+        [z,p,k] = butter(6,BandPassFilter_spec(2:3)/(EstimatedFS{ll}/2),'bandpass');
+        sos_high = zp2sos(z,p,k);
         
         % filter the loggers' signals
         LowPassLogVoc = (filtfilt(sos_low,1,SnipData{ll})); % low-pass filter the voltage trace
