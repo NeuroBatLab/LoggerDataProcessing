@@ -12,7 +12,7 @@ function plot_logger_data(InputFolder,Start, LoggerID, Duration, NeuralPlotMode)
 % all tetrodes non-spike sorted ('rasterMU'), spike sorted ('rasterSU')
 % or amplitude power color plot of all channels
 % ('power'). Default is set as 'power'.
-
+Manual=1;
 CodePath = pwd;
 [RootCodePath,~] = fileparts(CodePath);
 addpath(genpath(fullfile(RootCodePath,'SoundAnalysisBats')))
@@ -36,15 +36,15 @@ if isempty(LoggerFolders)
     LoggerFolders = dir(fullfile(InputLoggerFolder, '*ogger*'));
 end
 
- if nargin<3    
-     NLog = length(LoggerFolders);    
-     LoggerID=nan(NLog,1);
-     for ll=1:NLog
-         Ind = strfind(LoggerFolders(ll).name,'r');
-         LoggerID(NLog) = str2double(LoggerFolders(ll).name(Ind+1:end));
-     end
+if nargin<3
+    NLog = length(LoggerFolders);
+    LoggerID=nan(NLog,1);
+    for ll=1:NLog
+        Ind = strfind(LoggerFolders(ll).name,'r');
+        LoggerID(NLog) = str2double(LoggerFolders(ll).name(Ind+1:end));
+    end
 else
-     NLog = length(LoggerID);
+    NLog = length(LoggerID);
 end
 
 if nargin<2
@@ -61,9 +61,11 @@ if nargin<2
     Start = round(max(StartFile)/10^6);% in seconds
 end
 
+% parameters
 BandPassFilter = [300 6000]; % frequency cut-offs of the band-pass filter on voltage signal
-Fhigh_power = 20; % frequency value of the low-pass filter on voltage signal power
-Fs_env = 1000; % sampling frequency of the neural signal RMS set to be 1000Hz (1 sample per ms)
+Fhigh_power = 20; % frequency value of the low-pass filter on voltage signal power ( Frequency upper bound for calculating the envelope (time running RMS))
+Fs_env = 1000; % sampling frequency of the neural signal RMS set to be 1000Hz (1 sample per ms) and also of the sound enveloppe
+BandPassFilter_spec = [1000 5000 9900]; % Frequency bands chosen for digital signal processing
 
 Stop = Start + Duration;
 %% Loop through the loggers, get the snippet of data of interest (from Start to Start + 10sec)
@@ -72,154 +74,154 @@ TimeRef_usec = nan(NLog,1);
 EstimatedFS = cell(NLog,1);
 fprintf(1, '*** Gather data from each logger ***\n')
 for ll=1:NLog
-        fprintf(1, '%d/%d: Logger%d\n', ll,NLog, LoggerID(ll))
-        Ind = strfind(LoggerFolders(ll).name,'r');
-        DataFolder = fullfile(InputLoggerFolder, sprintf('%s%d',LoggerFolders(ll).name(1:(Ind)),LoggerID(ll)), 'extracted_data');
-        CSCFiles = dir(fullfile(DataFolder, '*CSC*.mat'));
-        NChannels = length(CSCFiles);
-        % Identify the onset time of the first TTL pulse (That will be
-        % used as a reference for transceiver time to allign the
-        % loggers
-        Events_file = dir(fullfile(CSCFiles(1).folder ,'*_EVENTS.mat'));
-        Events = load(fullfile(Events_file.folder ,Events_file.name));
-        FirstRisingInd = find(contains(Events.event_types_and_details, 'rising edge'),1,'first');
-        FirstFallingInd = find(contains(Events.event_types_and_details, 'falling edge'),1,'first');
-        if ~round((Events.event_timestamps_usec(FirstFallingInd) - Events.event_timestamps_usec(FirstRisingInd))*10^-3)==6
-            error('The first recorded TTL pulse is not of the expected duration of 6ms but is: %d usec\n',Events.event_timestamps_usec(FirstFallingInd) - Events.event_timestamps_usec(FirstRisingInd));
-        end
-        TimeRef_usec(ll) = Events.event_timestamps_usec(FirstRisingInd);
-        if NChannels>1 % this is a Neural Logger, two choices here: plot the amplitude of the filered voltage signal of each channel or extract spikes for each tetrode and plot a raster
-            
-            
-            % Check if spike files are present and plot either a power
-            % graph or a ratser.
-            ST_files = dir(fullfile(DataFolder, '*Tetrode_spikes_time*.mat'));
-            SU_files = dir(fullfile(DataFolder, '*TT*SS*.mat'));
-            if strcmp(NeuralPlotMode, 'power') || (isempty(ST_files) && isempty(SU_files))
-                NeuralPlotMode= 'power';
-                fprintf(1, 'This is a neural logger. The power of each electrode is plotted.\n');
-                SnipData{ll} = cell(NChannels,1);
-                EstimatedFS{ll} = nan(NChannels,1);
-                ParamDir = dir(fullfile(CSCFiles(1).folder, 'extract_logger_data_p*.mat'));
-                Param = load(fullfile(ParamDir(1).folder,ParamDir(1).name));
-                for cc=1:NChannels
-                    fprintf(1, 'Processing channel %d/%d\n', cc, NChannels);
-                    Data = load(fullfile(CSCFiles(cc).folder ,CSCFiles(cc).name)); % Load one of the data file
-                    
-                    % Identify the onset time closest to the start requested
-                    % and the sample start
-                    EstimatedFS{ll}(cc) = nanmean(Data.Estimated_channelFS_Transceiver(:,1));
-                    Timestamps_1st_samples_usec = Data.Timestamps_of_first_samples_usec - TimeRef_usec(ll);
-                    RecOnInd = find(Timestamps_1st_samples_usec/10^6<Start, 1, 'last');
-                    RecOnTime = Timestamps_1st_samples_usec(RecOnInd);
-                    RecOnSamp = Data.Indices_of_first_and_last_samples(RecOnInd,1);
-                    StartSamp = round(RecOnSamp + (Start-RecOnTime*10^-6)*EstimatedFS{ll}(cc));
-
-                    % Identify the onset time closest to the stop requested
-                    % and the sample stop
-                    RecOffInd = find(Timestamps_1st_samples_usec/10^6<Stop, 1, 'last');
-                    RecOffTime = Timestamps_1st_samples_usec(RecOffInd);
-                    RecOffSamp = Data.Indices_of_first_and_last_samples(RecOffInd,1);
-                    StopSamp = round(RecOffSamp + (Stop-RecOffTime*10^-6)*EstimatedFS{ll}(cc));
-
-                    % Extract data
-                    Voltage_Trace = double(int16(Data.AD_count_int16(StartSamp : StopSamp)))*Param.AD_count_to_uV_factor;
-
-                    % Bandpass the raw signal
-                    [b_band,a_band]=butter(6,BandPassFilter/(EstimatedFS{ll}(cc)/2),'bandpass'); % a 12th order Butterworth band-pass filter; the second input argument is normalized cut-off frequency (ie. normalized to the Nyquist frequency, which is half the sampling frequency, as required by MATLAB)
-                    Filtered_voltage_trace=(filtfilt(b_band,a_band,Voltage_Trace)); % band-pass filter the voltage traces
-
-                    % Low pass filter the power trace
-                    % Figure out length of filter
-                    Nframes = length(Filtered_voltage_trace);
-                    if ( Nframes > 3*512 ) 
-                        Nfilt = 512;
-                    elseif ( Nframes > 3*64 ) 
-                        Nfilt = 64;
-
-                    elseif ( Nframes > 3*16 ) 
-                        Nfilt = 16;
-                    else
-                        error('Data section is too short for filtering');
-                    end
-                    % Generate filter and filter signal power
-                    Lowpass_filter = fir1(Nfilt, Fhigh_power*2.0/EstimatedFS{ll}(cc));
-                    Amp_env_voltage = (filtfilt(Lowpass_filter, 1, Filtered_voltage_trace.^2)).^.5;
-                    % Resample to desired sampling rate
-                    if Data.Estimated_channelFS_Transceiver(cc) ~= Fs_env
-                        SnipData{ll}{cc} = resample(Amp_env_voltage, Fs_env, round(EstimatedFS{ll}(cc)));
-                    else
-                        SnipData{ll}{cc} = Amp_env_voltage;
-                    end
-                    figure(1)
-                    subplot(1,2,1)
-                    plot(Filtered_voltage_trace, '-k')
-                    hold on
-                    plot(Amp_env_voltage, '-r', 'LineWidth',2)
-                    legend('Filtered raw data', 'Running RMS')
-                    hold off
-                    subplot(1,2,2)
-                    plot(Filtered_voltage_trace.^2, '-k')
-                    hold on
-                    plot(Amp_env_voltage.^2, '-r', 'LineWidth',2)
-                    legend('Filtered data power','Amplitude envelope')
-                    hold off
-                    title(sprintf('Neural Logger SN%d Channel %d/%d',LoggerID(ll), cc, NChannels))
-
-                end
-            elseif strcmp(NeuralPlotMode, 'rasterMU') || isempty(SU_files)
-                fprintf(1,'This is a neural logger. No data spike sorted, the detected spikes from the 4 tetrodes will be plotted\n');
-                Num_MU = length(ST_files);
-                SnipData{ll} = cell(Num_MU,1);
-                for uu=1:Num_MU
-                    fprintf(1, 'Processing tetrode activity %d/%d\n', uu, Num_MU);
-                    load(fullfile(ST_files(uu).folder, ST_files(uu).name), 'Spike_arrival_times')
-                    % Convert spike arrival times
-                    %re-align spike arrival times that are in absolute transceiver time to
-                    % the present reference time,
-                    Spike_arrival_times = Spike_arrival_times - TimeRef_usec(ll);
-                    % Find the spike arrival times that are between the
-                    % requested times
-                    SnipData{ll}{uu} = Spike_arrival_times(logical((Spike_arrival_times/10^6>Start) .* (Spike_arrival_times/10^6<Stop)))/10^3-Start*10^3;
-                end
-            elseif strcmp(NeuralPlotMode, 'rasterSU')
-                Num_SU = length(SU_files);
-                fprintf(1,'This is a neural logger. %d Spike sorted units will be plotted\n', Num_SU);
-                SnipData{ll} = cell(Num_SU,1);
-                for uu=1:Num_SU
-                    fprintf(1, 'Processing single unit %d/%d\n', uu, Num_SU);
-                    load(fullfile(SU_files(uu).folder, SU_files(uu).name), 'Spike_arrival_times')
-                    % Convert spike arrival times
-                    %re-align spike arrival times that are in absolute transceiver time to
-                    % the present reference time,
-                    Spike_arrival_times = Spike_arrival_times - TimeRef_usec(ll);
-                    % Find the spike arrival times that are between the
-                    % requested times
-                    SnipData{ll}{uu} = Spike_arrival_times(logical((Spike_arrival_times/10^6>Start) .* (Spike_arrival_times/10^6<Stop)))/10^3-Start*10^3;
-                end
-            end
-            
-        else % This is an audio logger. Plot the wave form and a spectrogram
-             Data = load(fullfile(CSCFiles.folder ,CSCFiles.name));
-            % Identify the onset time closest to the start requested
+    fprintf(1, '%d/%d: Logger%d\n', ll,NLog, LoggerID(ll))
+    Ind = strfind(LoggerFolders(ll).name,'r');
+    DataFolder = fullfile(InputLoggerFolder, sprintf('%s%d',LoggerFolders(ll).name(1:(Ind)),LoggerID(ll)), 'extracted_data');
+    CSCFiles = dir(fullfile(DataFolder, '*CSC*.mat'));
+    NChannels = length(CSCFiles);
+    % Identify the onset time of the first TTL pulse (That will be
+    % used as a reference for transceiver time to allign the
+    % loggers
+    Events_file = dir(fullfile(CSCFiles(1).folder ,'*_EVENTS.mat'));
+    Events = load(fullfile(Events_file.folder ,Events_file.name));
+    FirstRisingInd = find(contains(Events.event_types_and_details, 'rising edge'),1,'first');
+    FirstFallingInd = find(contains(Events.event_types_and_details, 'falling edge'),1,'first');
+    if ~round((Events.event_timestamps_usec(FirstFallingInd) - Events.event_timestamps_usec(FirstRisingInd))*10^-3)==6
+        error('The first recorded TTL pulse is not of the expected duration of 6ms but is: %d usec\n',Events.event_timestamps_usec(FirstFallingInd) - Events.event_timestamps_usec(FirstRisingInd));
+    end
+    TimeRef_usec(ll) = Events.event_timestamps_usec(FirstRisingInd);
+    if NChannels>1 % this is a Neural Logger, two choices here: plot the amplitude of the filered voltage signal of each channel or extract spikes for each tetrode and plot a raster
+        
+        
+        % Check if spike files are present and plot either a power
+        % graph or a ratser.
+        ST_files = dir(fullfile(DataFolder, '*Tetrode_spikes_time*.mat'));
+        SU_files = dir(fullfile(DataFolder, '*TT*SS*.mat'));
+        if strcmp(NeuralPlotMode, 'power') || (isempty(ST_files) && isempty(SU_files))
+            NeuralPlotMode= 'power';
+            fprintf(1, 'This is a neural logger. The power of each electrode is plotted.\n');
+            SnipData{ll} = cell(NChannels,1);
+            EstimatedFS{ll} = nan(NChannels,1);
+            ParamDir = dir(fullfile(CSCFiles(1).folder, 'extract_logger_data_p*.mat'));
+            Param = load(fullfile(ParamDir(1).folder,ParamDir(1).name));
+            for cc=1:NChannels
+                fprintf(1, 'Processing channel %d/%d\n', cc, NChannels);
+                Data = load(fullfile(CSCFiles(cc).folder ,CSCFiles(cc).name)); % Load one of the data file
+                
+                % Identify the onset time closest to the start requested
                 % and the sample start
-                EstimatedFS{ll} = nanmean(Data.Estimated_channelFS_Transceiver);
+                EstimatedFS{ll}(cc) = nanmean(Data.Estimated_channelFS_Transceiver(:,1));
                 Timestamps_1st_samples_usec = Data.Timestamps_of_first_samples_usec - TimeRef_usec(ll);
                 RecOnInd = find(Timestamps_1st_samples_usec/10^6<Start, 1, 'last');
                 RecOnTime = Timestamps_1st_samples_usec(RecOnInd);
                 RecOnSamp = Data.Indices_of_first_and_last_samples(RecOnInd,1);
-                StartSamp = round(RecOnSamp + (Start-RecOnTime*10^-6)*EstimatedFS{ll});
+                StartSamp = round(RecOnSamp + (Start-RecOnTime*10^-6)*EstimatedFS{ll}(cc));
                 
                 % Identify the onset time closest to the stop requested
                 % and the sample stop
                 RecOffInd = find(Timestamps_1st_samples_usec/10^6<Stop, 1, 'last');
                 RecOffTime = Timestamps_1st_samples_usec(RecOffInd);
                 RecOffSamp = Data.Indices_of_first_and_last_samples(RecOffInd,1);
-                StopSamp = round(RecOffSamp + (Stop-RecOffTime*10^-6)*EstimatedFS{ll});
+                StopSamp = round(RecOffSamp + (Stop-RecOffTime*10^-6)*EstimatedFS{ll}(cc));
                 
-                % extract the snippet of sound
-                SnipData{ll} = Data.AD_count_int16(StartSamp:StopSamp) - mean(Data.AD_count_int16);
+                % Extract data
+                Voltage_Trace = double(int16(Data.AD_count_int16(StartSamp : StopSamp)))*Param.AD_count_to_uV_factor;
+                
+                % Bandpass the raw signal
+                [b_band,a_band]=butter(6,BandPassFilter/(EstimatedFS{ll}(cc)/2),'bandpass'); % a 12th order Butterworth band-pass filter; the second input argument is normalized cut-off frequency (ie. normalized to the Nyquist frequency, which is half the sampling frequency, as required by MATLAB)
+                Filtered_voltage_trace=(filtfilt(b_band,a_band,Voltage_Trace)); % band-pass filter the voltage traces
+                
+                % Low pass filter the power trace
+                % Figure out length of filter
+                Nframes = length(Filtered_voltage_trace);
+                if ( Nframes > 3*512 )
+                    Nfilt = 512;
+                elseif ( Nframes > 3*64 )
+                    Nfilt = 64;
+                    
+                elseif ( Nframes > 3*16 )
+                    Nfilt = 16;
+                else
+                    error('Data section is too short for filtering');
+                end
+                % Generate filter and filter signal power
+                Lowpass_filter = fir1(Nfilt, Fhigh_power*2.0/EstimatedFS{ll}(cc));
+                Amp_env_voltage = (filtfilt(Lowpass_filter, 1, Filtered_voltage_trace.^2)).^.5;
+                % Resample to desired sampling rate
+                if Data.Estimated_channelFS_Transceiver(cc) ~= Fs_env
+                    SnipData{ll}{cc} = resample(Amp_env_voltage, Fs_env, round(EstimatedFS{ll}(cc)));
+                else
+                    SnipData{ll}{cc} = Amp_env_voltage;
+                end
+                figure(1)
+                subplot(1,2,1)
+                plot(Filtered_voltage_trace, '-k')
+                hold on
+                plot(Amp_env_voltage, '-r', 'LineWidth',2)
+                legend('Filtered raw data', 'Running RMS')
+                hold off
+                subplot(1,2,2)
+                plot(Filtered_voltage_trace.^2, '-k')
+                hold on
+                plot(Amp_env_voltage.^2, '-r', 'LineWidth',2)
+                legend('Filtered data power','Amplitude envelope')
+                hold off
+                title(sprintf('Neural Logger SN%d Channel %d/%d',LoggerID(ll), cc, NChannels))
+                
+            end
+        elseif strcmp(NeuralPlotMode, 'rasterMU') || isempty(SU_files)
+            fprintf(1,'This is a neural logger. No data spike sorted, the detected spikes from the 4 tetrodes will be plotted\n');
+            Num_MU = length(ST_files);
+            SnipData{ll} = cell(Num_MU,1);
+            for uu=1:Num_MU
+                fprintf(1, 'Processing tetrode activity %d/%d\n', uu, Num_MU);
+                load(fullfile(ST_files(uu).folder, ST_files(uu).name), 'Spike_arrival_times')
+                % Convert spike arrival times
+                %re-align spike arrival times that are in absolute transceiver time to
+                % the present reference time,
+                Spike_arrival_times = Spike_arrival_times - TimeRef_usec(ll);
+                % Find the spike arrival times that are between the
+                % requested times
+                SnipData{ll}{uu} = Spike_arrival_times(logical((Spike_arrival_times/10^6>Start) .* (Spike_arrival_times/10^6<Stop)))/10^3-Start*10^3;
+            end
+        elseif strcmp(NeuralPlotMode, 'rasterSU')
+            Num_SU = length(SU_files);
+            fprintf(1,'This is a neural logger. %d Spike sorted units will be plotted\n', Num_SU);
+            SnipData{ll} = cell(Num_SU,1);
+            for uu=1:Num_SU
+                fprintf(1, 'Processing single unit %d/%d\n', uu, Num_SU);
+                load(fullfile(SU_files(uu).folder, SU_files(uu).name), 'Spike_arrival_times')
+                % Convert spike arrival times
+                %re-align spike arrival times that are in absolute transceiver time to
+                % the present reference time,
+                Spike_arrival_times = Spike_arrival_times - TimeRef_usec(ll);
+                % Find the spike arrival times that are between the
+                % requested times
+                SnipData{ll}{uu} = Spike_arrival_times(logical((Spike_arrival_times/10^6>Start) .* (Spike_arrival_times/10^6<Stop)))/10^3-Start*10^3;
+            end
         end
+        
+    else % This is an audio logger. Plot the wave form and a spectrogram
+        Data = load(fullfile(CSCFiles.folder ,CSCFiles.name));
+        % Identify the onset time closest to the start requested
+        % and the sample start
+        EstimatedFS{ll} = nanmean(Data.Estimated_channelFS_Transceiver);
+        Timestamps_1st_samples_usec = Data.Timestamps_of_first_samples_usec - TimeRef_usec(ll);
+        RecOnInd = find(Timestamps_1st_samples_usec/10^6<Start, 1, 'last');
+        RecOnTime = Timestamps_1st_samples_usec(RecOnInd);
+        RecOnSamp = Data.Indices_of_first_and_last_samples(RecOnInd,1);
+        StartSamp = round(RecOnSamp + (Start-RecOnTime*10^-6)*EstimatedFS{ll});
+        
+        % Identify the onset time closest to the stop requested
+        % and the sample stop
+        RecOffInd = find(Timestamps_1st_samples_usec/10^6<Stop, 1, 'last');
+        RecOffTime = Timestamps_1st_samples_usec(RecOffInd);
+        RecOffSamp = Data.Indices_of_first_and_last_samples(RecOffInd,1);
+        StopSamp = round(RecOffSamp + (Stop-RecOffTime*10^-6)*EstimatedFS{ll});
+        
+        % extract the snippet of sound
+        SnipData{ll} = Data.AD_count_int16(StartSamp:StopSamp) - mean(Data.AD_count_int16);
+    end
 end
 
 %% Check that the time reference was the same for all loggers
@@ -295,9 +297,12 @@ for ll=1:NLog
 end
 
 % Then the spectrograms
-fband = 100;
+% design the filters
+[z,p,k] = butter(6,BandPassFilter_spec(1:2)/(EstimatedFS{ll}/2),'bandpass');
+sos_low = zp2sos(z,p,k);
+[z,p,k] = butter(6,BandPassFilter_spec(2:3)/(EstimatedFS{ll}/2),'bandpass');
+sos_high = zp2sos(z,p,k);
 dBScale = 60;
-Fhigh = 8000;
 figure(3)
 cla
 MaxCmap = nan(NLog,1);
@@ -344,40 +349,25 @@ for ll=1:NLog
     else
         subplot(NLog,1,ll)
         
-        % design the filters
-            [z,p,k] = butter(6,BandPassFilter(1:2)/(Piezo_FS.(Fns_AL{ll})(vv)/2),'bandpass');
-            sos_low = zp2sos(z,p,k);
-            [z,p,k] = butter(6,BandPassFilter(2:3)/(Piezo_FS.(Fns_AL{ll})(vv)/2),'bandpass');
-            sos_high = zp2sos(z,p,k);
-            % filter the loggers' signals
-            if sum(isnan(Piezo_wave.(Fns_AL{ll}){vv}))~=length(Piezo_wave.(Fns_AL{ll}){vv})
-                LowPassLogVoc{vv}{ll} = (filtfilt(sos_low,1,Piezo_wave.(Fns_AL{ll}){vv})); % low-pass filter the voltage trace
-                HighPassLogVoc = (filtfilt(sos_high,1,Piezo_wave.(Fns_AL{ll}){vv})); % high-pass filter the voltage trace
-                Amp_env_LowPassLogVoc{vv}{ll}=running_rms(LowPassLogVoc{vv}{ll}, Piezo_FS.(Fns_AL{ll})(vv), Fhigh_power, Fs_env);
-                Amp_env_HighPassLogVoc{vv}{ll}=running_rms(HighPassLogVoc, Piezo_FS.(Fns_AL{ll})(vv), Fhigh_power, Fs_env);
-
-                % Plot the low pass filtered signal of each logger
-                figure(1)
-                subplot(length(AudioLogs)+2,1,ll+1)
-                [~] = spec_only_bats(LowPassLogVoc{vv}{ll}, Piezo_FS.(Fns_AL{ll})(vv));
-                title(sprintf('%s',Fns_AL{ll}))
-                hold on
-                yyaxis right
-                plot((1:length(Amp_env_LowPassLogVoc{vv}{ll}))/Fs_env*1000, Amp_env_LowPassLogVoc{vv}{ll}, 'b-','LineWidth', 2);
-                hold on
-                plot((1:length(Amp_env_HighPassLogVoc{vv}{ll}))/Fs_env*1000, Amp_env_HighPassLogVoc{vv}{ll}, 'r-','LineWidth',2);
-                ylabel('Amplitude')
-                hold off
-                if Manual
-                    pause(0.1)
-                    Player= audioplayer((Piezo_wave.(Fns_AL{ll}){vv}-mean(Piezo_wave.(Fns_AL{ll}){vv}))/std(Piezo_wave.(Fns_AL{ll}){vv}), Piezo_FS.(Fns_AL{ll})(vv)); %#ok<TNMLP>
-                    play(Player)
-                    pause(1)
-                end
         
-        [~, ~, logB, ~, ~] = spec_only_bats(SnipData{ll}, EstimatedFS{ll},dBScale, Fhigh,fband);
+        % filter the loggers' signals
+        LowPassLogVoc = (filtfilt(sos_low,1,SnipData{ll})); % low-pass filter the voltage trace
+        HighPassLogVoc = (filtfilt(sos_high,1,SnipData{ll})); % high-pass filter the voltage trace
+        Amp_env_LowPassLogVoc=running_rms(LowPassLogVoc, EstimatedFS{ll}, Fhigh_power, Fs_env);
+        Amp_env_HighPassLogVoc=running_rms(HighPassLogVoc, EstimatedFS{ll}, Fhigh_power, Fs_env);
+        
+        % Plot the low pass filtered signal of each logger
+        [~, ~, logB, ~, ~] = spec_only_bats(LowPassLogVoc, EstimatedFS{ll});
         MaxCmap(ll) = max(max(logB));
         title(sprintf('AudioLogger %d',LoggerID(ll)));
+        hold on
+        yyaxis right
+        plot((1:length(Amp_env_LowPassLogVoc))/Fs_env*1000, Amp_env_LowPassLogVoc, 'b-','LineWidth', 2);
+        hold on
+        plot((1:length(Amp_env_HighPassLogVoc))/Fs_env*1000, Amp_env_HighPassLogVoc, 'r-','LineWidth',2);
+        ylabel('Amplitude')
+        hold off
+        
     end
 end
 % Set all the spectrograms at the same scale:
@@ -392,10 +382,16 @@ for ll=1:NLog
         subplot(NLog,1,ll)
         axis xy;
         caxis('manual');
-        caxis([MaxB-dBScale MaxB]); 
+        caxis([MaxB-dBScale MaxB]);
         cmap = spec_cmap();
         colormap(ss, cmap);
         colorbar
+        if Manual
+            pause(0.1)
+            Player= audioplayer((SnipData{ll}-mean(SnipData{ll}))/std(SnipData{ll}), EstimatedFS{ll}); %#ok<TNMLP>
+            play(Player)
+            pause(1)
+        end
     end
 end
 
@@ -404,7 +400,7 @@ end
 end
 
 
-                
-            
-     
+
+
+
 
