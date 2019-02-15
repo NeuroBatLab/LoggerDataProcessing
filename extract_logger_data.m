@@ -361,10 +361,6 @@ if ~strcmp(Dat_rootname, AllDatFiles(1).name(1:4))
 end
 
 
-%% Get a reference for the time
-LoggerTime_ref = Event_timestamps_usec_raw(find(contains(Event_types_and_details,'Started recording'),1));
-% Event_timestamps_usec = Event_timestamps_usec - LoggerTime_ref;
-
 %% Synchronize logger to transceiver
 % Change all logger time stamps to the corresponding times of the
 % transceiver clock (the transceiver clock and logger clock run at different
@@ -485,6 +481,10 @@ Event_timestamps_usec(Ind_Logger_times)=Event_timestamps_usec(Ind_Logger_times) 
 % Convert time logger stamps of clock difference reports to transceiver time stamps
 CD_transceiver_stamps=CD_logger_stamps-CD_sec*1e6;
 
+% Get a reference for the time
+LoggerTime_ref = Event_timestamps_usec(find(contains(Event_types_and_details,'Started recording'),1));
+% Event_timestamps_usec = Event_timestamps_usec - LoggerTime_ref;
+
 % plot the result of clock difference correction to check for mistakes
 Figure1 = figure(1);
 cla(Figure1)
@@ -496,7 +496,7 @@ if length(Outsider)>=1
     plot((CD_logger_stamps(Outsider)-CD_sec_Outsider-LoggerTime_ref)/(1e6*60), CD_sec_Outsider*1e3,'ro', 'DisplayName','Clock drift report excluded') % Clock drift report excluded from the fit
 end
 if length(Ind_Sync)>2
-    plot((Event_timestamps_usec(Ind_Sync(2:end-1))-LoggerTime_ref)/(1e6*60),zeros(length(Ind_Sync(2:end-1)),1),'k*','DisplayName', 'Clock synchronization events') % the events when the two clocks are synchronized in minutes
+    plot((Event_timestamps_usec(Ind_Sync(2:end-1))-LoggerTime_ref)/(1e6*60), mean(CD_sec*1e3) .* ones(length(Ind_Sync(2:end-1)),1),'k*','DisplayName', 'Clock synchronization events') % the events when the two clocks are synchronized in minutes
 end
     legend('Location','best', 'AutoUpdate', 'off')
 title(sprintf('%s %s #Abherent Clock drift report: %d', LoggerType, SerialNumber, length(Outsider)));
