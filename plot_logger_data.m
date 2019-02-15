@@ -236,7 +236,7 @@ end
 fprintf(1, '*** Plot data ***\n')
 % Raw waveforms first
 figure(2)
-cla
+clf
 MaxWaveform = nan(NLog,1);
 for ll=1:NLog
     if iscell(SnipData{ll}) && strcmp(NeuralPlotMode, 'power') % This is a neural logger and we plot the power of each electrode
@@ -299,7 +299,7 @@ end
 % Then the spectrograms
 dBScale = 60;
 figure(3)
-cla
+clf
 MaxCmap = nan(NLog,1);
 for ll=1:NLog
     if iscell(SnipData{ll})  && strcmp(NeuralPlotMode, 'power') % This is a neural logger and we plot the power of each electrode
