@@ -4,7 +4,7 @@ function [Raw, LFP, SpikeT, SpikeSU, EventOnset_time, EventOffset_time] = extrac
 % neural logger data (CSC matlab files, Tetrode_spikes_time matlab files and TT SS matlab files)
 % OnsetOffset_transc_time_refined is a 2 column matrix with each row
 % corresponding to a behavioral event which onset and offset times is ms in
-% transceiver time are given by the first and seond column.
+% transceiver time are given by the first and second column.
 
 BandPassFilter = [300 6000];
 if nargin<3
