@@ -925,9 +925,9 @@ if Save_voltage
                 % If Neural data, extract position of potential spike on
                 % the voltage trace that was cleaned from the RF Artifacts
                 if sum(Missing_files)
-                    Peaks_positions=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples, 'MissingFiles',find(Missing_files),'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
+                    [Peaks_positions, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples, 'MissingFiles',find(Missing_files),'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
                 else
-                    Peaks_positions=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples,'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
+                    [Peaks_positions, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples,'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
                 end
             end    
             
@@ -952,6 +952,7 @@ if Save_voltage
             OUTDAT.File_timestamp_discrepancies_ms=File_timestamp_discrepancies_ms;
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
                 OUTDAT.Peaks_positions= Peaks_positions;
+                OUTDAT.Filtered_voltage_trace= Filtered_voltage_trace;
                 OUTDAT.DataDeletionOnsetOffset_usec = DataDeletionOnsetOffset_usec{active_channel_i};
                 OUTDAT.DataDeletionOnsetOffset_sample = DataDeletionOnsetOffset_sample{active_channel_i};
                 clear Peaks_positions Filtered_voltage_trace
