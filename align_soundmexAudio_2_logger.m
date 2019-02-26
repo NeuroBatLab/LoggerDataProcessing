@@ -4,7 +4,7 @@ function [Pulse_idx, Pulse_TimeStamp_Transc, File_number, Pulse_samp_audio, Slop
 % Deuteron logger recordings. This function extract the positions of pulses
 % in raw audio recordings and in the time at which these pulses are
 % detected by the Deuteron transceiver. A linear fit is run for each audio
-% file such that the transceiver time of audio events can be reatrieved
+% file such that the transceiver time of audio events can be retrieved
 % from the sample indices of these audio events in the continuous raw
 % recordings.
 %
@@ -12,7 +12,7 @@ function [Pulse_idx, Pulse_TimeStamp_Transc, File_number, Pulse_samp_audio, Slop
 % Audio_dir: folder containing the audio recordings
 %
 % Loggers_dir: base directory containing loggers data. This script expects
-% this directory to contain the sufolders 'loggerx' wher x is the serial
+% this directory to contain the subfolders 'loggerx' where x is the serial
 % number of the logger
 %
 % ExpStartTime: identify the exact session you want to look at by the time
