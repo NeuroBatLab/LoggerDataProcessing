@@ -186,6 +186,9 @@ end
 % find eventfile from all loggers (TTL pulses are logged in
 % transceiver time which is common to all loggers but they don't always log the same pulses)
 All_loggers = dir(fullfile(Loggers_dir, '*ogger*'));
+DirFlags = [All_loggers.isdir];
+% Extract only those that are directories.
+All_loggers = All_loggers(DirFlags);
 NLog = length(All_loggers);
 Transceiver_time_drise1 = cell(NLog,1);
 Transceiver_time_dfall1 = cell(NLog,1);
