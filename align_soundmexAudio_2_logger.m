@@ -235,7 +235,7 @@ Transceiver_time_dfall1 = unique(cell2mat(Transceiver_time_dfall1));
 % restrict the dataset to the time frame we want to look at
 if length(OnsetTime)>1 || length(OffsetTime)>1
     if length(OnsetTime)>1
-        fprintf(1,'%d Onset times where detected for all voc reward start, indicate which one you want to select:\n', length(OnsetTime))
+        fprintf(1,'%d Onset times where detected for %s, indicate which one you want to select:\n', length(OnsetTime), Session_strings{1})
         for oo=1:length(OnsetTime)
             fprintf(1,'%d. %d\n', oo, OnsetTime(oo));
         end
@@ -243,7 +243,7 @@ if length(OnsetTime)>1 || length(OffsetTime)>1
         OnsetTime = OnsetTime(OnInd);
     end
     if length(OffsetTime)>1
-        fprintf(1,'%d Offset times where detected for all voc reward start, indicate which one you want to select:\n', length(OffsetTime))
+        fprintf(1,'%d Offset times where detected for %s, indicate which one you want to select:\n', length(OffsetTime), Session_strings{1})
         for oo=1:length(OffsetTime)
             fprintf(1,'%d. %d\n', oo, OffsetTime(oo));
         end
@@ -332,9 +332,6 @@ if strcmp(Method, 'rise')
         
         
     elseif strcmp(Method, 'risefall')
-        if length(Transceiver_time_drise1) ~= length(Transceiver_time_dfall1)
-            error('The number of rising edge is not the same as the number of falling edges on Deuteron')
-        end
         if strcmp(TTL_pulse_generator, 'MOTU')
             Transceiver_time_doff = Transceiver_time_dfall1;
             Transceiver_time_don = Transceiver_time_drise1;
@@ -342,6 +339,21 @@ if strcmp(Method, 'rise')
             Transceiver_time_doff = Transceiver_time_drise1;
             Transceiver_time_don = Transceiver_time_dfall1;
         end
+        if length(Transceiver_time_doff) ~= length(Transceiver_time_don)
+            fprintf('The number of rising edge is not the same as the number of falling edges on Deuteron\nTrying to fix that!\n')
+            IndBreak=Inf;
+            while ~isempty(IndBreak)
+                ComLength=min(length(Transceiver_time_doff), length(Transceiver_time_don));
+                Pulse_dur_ms_hyp = round(Transceiver_time_doff(1:ComLength)-Transceiver_time_don(1:ComLength));
+                IndBreak = min([find(Pulse_dur_ms_hyp>TTL_param.IPI,1,'First') find(Pulse_dur_ms_hyp<0,1,'First')]); % this is the first set of on/off edges that is causing an issue
+                if ~isempty(IndBreak) && Pulse_dur_ms_hyp(IndBreak)>TTL_param.IPI % an off edge is missing supress the on edge and calculate the Pulse duration again
+                    Transceiver_time_don(IndBreak)=[];
+                elseif ~isempty(IndBreak) &&  Pulse_dur_ms_hyp(IndBreak)<0 % an on edge is missing supress the off edge and calculate the Pulse duration again
+                    Transceiver_time_doff(IndBreak)=[];
+                end
+            end
+        end
+        
         Pulse_dur_ms = round(Transceiver_time_doff-Transceiver_time_don); % This is the duration of each pulse
         IP_transc = round(Transceiver_time_don(2:end)-Transceiver_time_doff(1:(end-1))); % This is the interval between pulses
         PulseInd = [1; find(round(IP_transc/1000)>=(TTL_param.IPTI-0.5))+1]; % These are the indices of the first pulse of each pulse train in Transceiver_time_don and Transciever_time_doff
