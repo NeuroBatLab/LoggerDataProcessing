@@ -95,6 +95,7 @@ for ii_spike = 1:NTrigger % Loop over snippets that reach detection threshold
         title('R with all library spikes')
         hold off
         pause(1)
+        close(Fig)
 end
 
 %% save the data
