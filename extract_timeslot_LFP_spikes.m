@@ -1,4 +1,4 @@
-function [Raw, LFP, SpikeT, SpikeSU, EventOnset_time, EventOffset_time] = extract_timeslot_LFP_spikes(LData_folder, OnsetOffset_transc_time_refined, Buffer, MaxEventDur, Flag)
+function [Raw, LFP, SpikeT, SpikeSU, SpikeTDeNoiseInd, EventOnset_time, EventOffset_time] = extract_timeslot_LFP_spikes(LData_folder, OnsetOffset_transc_time_refined, Buffer, MaxEventDur, Flag, DenoiseT,Rthreshold)
 %% This function extract the neural data of loggers according to onset and offset times of behavioral events
 % LData_folder is the folder containing the extracted and spike sorted
 % neural logger data (CSC matlab files, Tetrode_spikes_time matlab files and TT SS matlab files)
@@ -16,11 +16,19 @@ end
 if nargin<5
     Flag = [1 1 1 1];
 end
+if nargin<6
+    DenoiseT = 0;
+end
+if nargin<7
+    Rthreshold = [0.92 0.94 0.96 0.98];
+end
 %% list available data for that logger
 % List CSC files (raw data)
 LCSCDir = dir(fullfile(LData_folder, '*CSC*.mat'));
 % List Spike time files (unsorted tetrode spikes)
 ST_files = dir(fullfile(LData_folder, '*Tetrode_spikes_time*.mat'));
+% List Spike shape files (unsorted tetrode spikes)
+SS_files = dir(fullfile(LData_folder, '*Tetrode_spikes_snippets*.mat'));
 % List SU Spike time files (spike-sorted tetrode spikes)
 SU_files = dir(fullfile(LData_folder, '*TT*SS*.mat'));
 
@@ -143,12 +151,16 @@ if Flag(3)
         Nevent = size(OnsetOffset_transc_time_refined,1);
         Num_MU = length(ST_files);
         SpikeT = cell(Nevent,Num_MU);
+        SpikeTDeNoiseInd = cell(Nevent,Num_MU);
         EventOnset_time = nan(Nevent, 1);
         EventOffset_time = nan(Nevent, 1);
         for uu=1:Num_MU
              fprintf(1, '--- Processing tetrode %d/%d\n', uu, Num_MU);
-            % Load the spike arrival times for that tetrode or single unit
+            % Load the spike arrival times for that tetrode
             Spikes = load(fullfile(ST_files(uu).folder, ST_files(uu).name), 'Spike_arrival_times');
+            Snip = load(fullfile(SS_files(uu).folder, [SS_files(uu).name(1:(end-5)) ST_files(uu).name((end-4):end)]), 'Snippets');
+            
+            
             % loop through vocalizations and extract spike arrival times
             for vv=1:Nevent
                 if uu==1
@@ -166,7 +178,14 @@ if Flag(3)
                 % Find the spike arrival times that are between the
                 % requested times and center them to the onset of the
                 % behavioral event
-                SpikeT{vv,uu} = Spikes.Spike_arrival_times(logical((Spikes.Spike_arrival_times>(EventOnset_time(vv)*10^3)) .* (Spikes.Spike_arrival_times<(EventOffset_time(vv)*10^3))))/10^3 - OnsetOffset_transc_time_refined(vv,1);
+                SpikeT_local = logical((Spikes.Spike_arrival_times>(EventOnset_time(vv)*10^3)) .* (Spikes.Spike_arrival_times<(EventOffset_time(vv)*10^3)));
+                SpikeT{vv,uu} = Spikes.Spike_arrival_times(SpikeT_local)/10^3 - OnsetOffset_transc_time_refined(vv,1);
+                SpikeTDeNoiseInd{vv,uu} = cell(length(Rthreshold),1);
+                if DenoiseT % get the indices of denoised spikes according to threshold(s)
+                    for rr=1:length(Rthreshold)
+                        SpikeTDeNoiseInd{vv,uu}{rr} = sort_spike_from_noise(Snip.Snippets(:,:,SpikeT_local), Rthreshold(rr));
+                    end
+                end
             end
         end
     end

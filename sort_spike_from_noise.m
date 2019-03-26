@@ -1,4 +1,5 @@
-function  [ Accepted_spikes,  Max_r_values ] = sort_spike_from_noise( Input_file, R_threshold, Plot,Library_file)
+function  [ Accepted_spikes,  Max_r_values ] = sort_spike_from_noise( Snippets, R_threshold, Plot,Library_file)
+%[ Accepted_spikes,  Max_r_values ] = sort_spike_from_noise( Input_file, R_threshold, Plot,Library_file)
 % This function runs an algorithm to sort spike shapes from noise (false detection), based on
 % correlations of the spike's shape with a library of acceptable spikes. For each spike, the
 % correlation is computed for the tetrode channel (one out of 4) which has the largest height.
@@ -35,20 +36,26 @@ end
 SS=load(Library_file, 'library_of_acceptable_spike_shapes'); % Load the library of acceptable spike shapes;
 
 %% Load data to sort
-Tetrode_in = load(Input_file);
-NTrigger = length(Tetrode_in.Spike_arrival_times);
+%Tetrode_in = load(Input_file,'Snippets');
+% Snippets = Tetrode_in.Snippets;
+% clear Tetrode_in
+NTrigger = size(Snippets,3);
 
 %% initialize output variables
 Accepted_spikes = nan(NTrigger,1);
 Max_r_values = nan( NTrigger,1);
 
+%% start to loop
+% [~,FileName]=fileparts(Input_file);
+% Tetrode_ID = FileName(end);
 for ii_spike = 1:NTrigger % Loop over snippets that reach detection threshold
     if mod(ii_spike,1000) == 0
-        fprintf(1,'Spike %d/%d -> %.2f%\n', ii_spike,NTrigger,ii_spike/NTrigger*100)
+        %fprintf(1,'Tetrode %s Spike %d/%d -> %.2f%%\n',Tetrode_ID, ii_spike,NTrigger,ii_spike/NTrigger*100)
+        fprintf(1,'Spike %d/%d -> %.2f%%\n',ii_spike,NTrigger,ii_spike/NTrigger*100)
     end
     
     % Extract the current spike shape on all 4 channels:
-    Spike_shape_4channels = squeeze( Tetrode.Spike_snippets(:,:,ii_spike));
+    Spike_shape_4channels = squeeze( Snippets(:,:,ii_spike));
     
     % Choose the channel # for which the spike has the largest height:
     [ ~, Idx_channel_max_height ] = max( max( Spike_shape_4channels ) );
@@ -77,9 +84,15 @@ for ii_spike = 1:NTrigger % Loop over snippets that reach detection threshold
     
     if Plot
         Fig=figure();
+        Fig.Position = [1400 100 1200 400];
         subplot(1,3,1)
         % plot the current spike
-        plot(Spike_shape, 'k-', 'LineWidth',2)
+        if Accepted_spikes( ii_spike )
+            plot(Spike_shape/max(Spike_shape), 'r-', 'LineWidth',2)
+        else
+            plot(Spike_shape/max(Spike_shape), 'k-', 'LineWidth',2)
+        end
+        text(25, 0.75, sprintf('R = %.2f',Max_r_values( ii_spike )), 'FontSize', 30);
         title('Current spike')
         subplot(1,3,2)
         % plot the library spike with the best correlation
@@ -87,17 +100,28 @@ for ii_spike = 1:NTrigger % Loop over snippets that reach detection threshold
         title('Library best match')
         % plot the correlation coefficients obtained accross all spikes of
         % the library
+        subplot(1,3,3)
         plot(max( [ rrr_vec_lag_0;  rrr_vec_lag_plus1;  rrr_vec_lag_minus1 ] ), 'k-', 'LineWidth',2)
         hold on
-        plot(Imax, Max_r_values( ii_spike ), 'r*', 'MarkerSize',20)
+        if Accepted_spikes( ii_spike )
+            text(50, 0.1, sprintf('Accepted r = %.2f',Max_r_values( ii_spike )));
+            plot(Imax, Max_r_values( ii_spike ), 'r*', 'MarkerSize',20)
+        else
+            text(50, 0.1, sprintf('Rejected r = %.2f',Max_r_values( ii_spike )));
+            plot(Imax, Max_r_values( ii_spike ), 'b*', 'MarkerSize',20)
+        end
         xlabel('Library spikes')
-        Ylim([0 1])
+        ylabel('correlation coefficient')
+        ylim([0 1])
         title('R with all library spikes')
         hold off
-        pause(1)
+        pause(1.5)
         close(Fig)
+    end
 end
 
 %% save the data
-save(Input_file, 'Accepted_spikes','Max_r_values','-append');
+% IndT = strfind(Input_file,'snippets');
+% Output_file = [Input_file(1:IndT-1) 'time' Input_file(IndT+length('snippets'):end)];
+% save(Output_file, 'Accepted_spikes','Max_r_values','-append');
 end
