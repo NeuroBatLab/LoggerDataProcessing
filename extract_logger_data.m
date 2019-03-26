@@ -478,6 +478,28 @@ Event_timestamps_usec = Event_timestamps_usec_raw;
 Event_timestamps_usec(Ind_Logger_times)=Event_timestamps_usec(Ind_Logger_times) - Estimated_CD; % convert the time stamps that were originally logger times to transceiver times
 %Event_timestamps_usec=round(Event_timestamps_usec); % round all time stamps to integer microseconds
 
+% Check that trasnceiver time is continuously increasing. If not and the 
+% time difference is higher than 1 sec (10^6usec) most
+% likely a reset of the clock happened just before a synchronization event
+% or onset/offset event. We want to correct for that.
+if any(diff(Event_timestamps_usec)<-10^6) % The transceiver clock went back in time at some point
+    DiffTime = diff(Event_timestamps_usec);
+    BackInd = find(DiffTime<-10^6);
+    fprintf(1,'The transceiver clock jumped back in time %d times\n', length(BackInd));
+    for IB = 1:length(BackInd)
+        fprintf(1,'\nJump %d of %.2f ms between event\n%s\nand event\n%s\n',IB, DiffTime(BackInd(IB))/10^3,Event_types_and_details{BackInd(IB)},Event_types_and_details{BackInd(IB)+1});
+        GoSignal = input('Correcting for the clock jump? No:0; Yes:1; Debug mode:2');
+        if GoSignal==1
+            DiffTime = diff(Event_timestamps_usec);
+            Event_timestamps_usec((BackInd(IB)+1):end) = Event_timestamps_usec((BackInd(IB)+1):end) -DiffTime(BackInd(IB)) + 10^6; % add the value of the jump + 1sec to all successive values up to the next jump
+        elseif GoSignal==2
+            keyboard
+        else
+            % doing no correction
+        end
+    end
+end
+
 % Convert time logger stamps of clock difference reports to transceiver time stamps
 CD_transceiver_stamps=CD_logger_stamps-CD_sec*1e6;
 
@@ -744,6 +766,7 @@ if Save_voltage
                     fprintf('The file started %d ms after what was expected given the number of samples of previous file and sample frequency\n', File_timestamp_discrepancies_ms(File_i));
                 else
                     error(' Data overlap, the file started %d ms before what was expected given the number of samples of previous file and sample frequency\n', File_timestamp_discrepancies_ms(File_i));
+                    keyboard
                 end
             end
             
@@ -934,6 +957,7 @@ if Save_voltage
             
             % save the data
             Filename=fullfile(Output_folder, sprintf('%s_%s_CSC%d.mat', BatID, Date, Active_channels(active_channel_i))); % going with the following numbering convention: the first channel is channel 0, the second channel is channel 1, etc.
+            Filename_temp=fullfile(Output_folder, sprintf('%s_%s_CSC%d_temp.mat', BatID, Date, Active_channels(active_channel_i)));
             OUTDAT = struct();
             OUTDAT.Bat_id = BatID;
             OUTDAT.Date = Date;
@@ -952,9 +976,10 @@ if Save_voltage
             OUTDAT.File_timestamp_discrepancies_ms=File_timestamp_discrepancies_ms;
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
                 OUTDAT.Peaks_positions= Peaks_positions;
-                OUTDAT.Filtered_voltage_trace= Filtered_voltage_trace;
+%                 OUTDAT.Filtered_voltage_trace= Filtered_voltage_trace;
                 OUTDAT.DataDeletionOnsetOffset_usec = DataDeletionOnsetOffset_usec{active_channel_i};
                 OUTDAT.DataDeletionOnsetOffset_sample = DataDeletionOnsetOffset_sample{active_channel_i};
+                parsave(Filename_temp, Filtered_voltage_trace);
                 clear Peaks_positions Filtered_voltage_trace
                 if CheckSpike    
                     [Spike_arrival_times, Snippets] = extract_tetrode_snippets(OUTDAT.Peaks_positions, Output_folder, Active_channels(active_channel_i));
@@ -1033,7 +1058,8 @@ if Save_voltage
                 D.Peaks_positions(FalsePeaksInd) = [];
                 All_Peaks_positions{channel_i} = D.Peaks_positions;
                 clear D
-                D=load(FileName, 'Filtered_voltage_trace');
+                FileName_temp=fullfile(Output_folder, sprintf('%s_%s_CSC%d_temp.mat', BatID,Date, Active_channels_local(channel_i)));
+                D=load(FileName_temp, 'Filtered_voltage_trace');
                 All_Peaks_voltage{channel_i}= D.Filtered_voltage_trace(All_Peaks_positions{channel_i});
                 clear D
             end
@@ -1100,6 +1126,14 @@ if Save_voltage
             Filename_Snip = fullfile(Output_folder,sprintf('%s_%s_Tetrode_spikes_snippets_T%d.mat',BatID, Date,tt));
             save(Filename_Snip,'Snippets', 'Date', 'BatID','SerialNumber','-v7.3');
             fprintf(1,'Spike times and snippets of tetrode %d saved in\n%s\n and%s\n',tt,Filename_ST, Filename_Snip);
+        end
+        
+        % erase the temporary files containing the filtered voltage trace
+        % of each channel
+        Temp_dir=dir(fullfile(Output_folder, sprintf('%s_%s_CSC*_temp.mat', BatID,Date)));
+        Ntemp = length(Temp_dir);
+        for Ntp = 1:Ntemp
+            delete(fullfile(Temp_dir(Ntp).folder, Temp_dir(Ntp).name))
         end
     
         if NlxSave
