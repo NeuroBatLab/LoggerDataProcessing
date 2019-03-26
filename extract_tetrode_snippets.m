@@ -41,7 +41,8 @@ else
         end
 
         % For all channels, collect the spike snippets
-        load(Filename, 'Filtered_voltage_trace');
+        Filename_temp = [Filename(1:end-4) '_temp' '.mat'];
+        load(Filename_temp, 'Filtered_voltage_trace');
         for spike_i=1:Num_spikes
             Spike_snippets(:,channel_i,spike_i)=Filtered_voltage_trace(Sample_indices_of_peaks(spike_i)+Spike_window(1):Sample_indices_of_peaks(spike_i)+Spike_window(2))'; % save the waveforms of the current spike (units are uV)
         end
