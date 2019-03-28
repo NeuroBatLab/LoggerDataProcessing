@@ -70,6 +70,15 @@
 %                            rounded to integer milliseconds, while the sampling
 %                            period is tens of microseconds
 
+% 'TransceiverReset'    Structure containing the info in case a different
+%                       transceiver was used in 2 sessions or a reset of
+%                       the transceiver happened between 2 recording
+%                       sessions AND the correction of transceiver time was
+%                       done for some other loggers that all should be
+%                       synchronized. This info is used to apply the same
+%                       correction to the present logger. Default is empty
+%                       structure
+
 %Parameters specific to neural loggers
 % 'NlxSave'             Logical. If set to 1, the function save not only
 %                           the data (spike times in microseconds and
@@ -105,12 +114,12 @@
 
 % Code inspired from Wujie Zhang function extract_Nlg_data and Maimon Rose function extract_audio_data. Written by
 % Julie Elie
-last_code_update='11/03/2018, Julie Elie'; % identifies the version of the code
+last_code_update='03/27/2019, Julie Elie'; % identifies the version of the code
 
 %% Sorting input arguments
-pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','ActiveChannels', 'AutoSpikeThreshFactor'};
-dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50,0,[],3};
-[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike,Active_channels, AutoSpikeThreshFactor] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','ActiveChannels', 'AutoSpikeThreshFactor', 'TransceiverReset'};
+dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50,0,[],3, struct()};
+[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike,Active_channels, AutoSpikeThreshFactor,TransceiverReset] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 if strcmp(EventFile, 'one_file')
     Save_event_file=1;
@@ -130,7 +139,7 @@ end
 
 if Diary
     Now=clock;
-    Diary_filename = fullfile(Output_folder, sprintf('%s_Diary_%s_%d%d%d.txt', BatID, date,Now(4),Now(5),round(Now(6)))); %#ok<NASGU>
+    Diary_filename = fullfile(Output_folder, sprintf('%s_Diary_%s_%d%d%d.txt', BatID, date,Now(4),Now(5),round(Now(6))));
     diary(Diary_filename)
     diary on
 end
@@ -446,6 +455,7 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     % Convert the events that were logged in logger time
     % to transceiver time for each chunck of data
     if length(Ind_CD_local)==1 % if there is only one reported clock difference in the current interval, then use that for all unreported clock differences
+        warning('Only one clock drift value for the %dth section of data\nbetween consecutive clock synchronization events or start stop events\nClock drift might not be well estimated\n',unsync_i);
         Estimated_CD(Ind_Logger_times_local)=CD_sec_local*1e6;
     else
         % Estimate the clock differences in microseconds at all the time points in the
@@ -481,7 +491,7 @@ Event_timestamps_usec(Ind_Logger_times)=Event_timestamps_usec(Ind_Logger_times) 
 % Check that trasnceiver time is continuously increasing. If not and the 
 % time difference is higher than 1 sec (10^6usec) most
 % likely a reset of the clock happened just before a synchronization event
-% or onset/offset event. We want to correct for that.
+% or onset/offset event, or the transceiver was exchanged. We want to correct for that.
 if any(diff(Event_timestamps_usec)<-10^6) % The transceiver clock went back in time at some point
     DiffTime = diff(Event_timestamps_usec);
     BackInd = find(DiffTime<-10^6);
@@ -490,14 +500,47 @@ if any(diff(Event_timestamps_usec)<-10^6) % The transceiver clock went back in t
         fprintf(1,'\nJump %d of %.2f ms between event\n%s\nand event\n%s\n',IB, DiffTime(BackInd(IB))/10^3,Event_types_and_details{BackInd(IB)},Event_types_and_details{BackInd(IB)+1});
         GoSignal = input('Correcting for the clock jump? No:0; Yes:1; Debug mode:2');
         if GoSignal==1
-            DiffTime = diff(Event_timestamps_usec);
-            Event_timestamps_usec((BackInd(IB)+1):end) = Event_timestamps_usec((BackInd(IB)+1):end) -DiffTime(BackInd(IB)) + 10^6; % add the value of the jump + 1sec to all successive values up to the next jump
+            % Calculate the time difference of 2 transceiver reports that
+            % are each apart from the jump
+            Ind_Transc_times=find(contains(Event_timestamps_source,'Transceiver')); % events originally logged with transceiver time stamps
+            ITt_before = Ind_Transc_times(find(Ind_Transc_times<=BackInd(IB),1,'Last'));
+            ITt_after = Ind_Transc_times(find(Ind_Transc_times>BackInd(IB),1,'First'));
+            Tt_before = Event_timestamps_usec(ITt_before);
+            Tt_after = Event_timestamps_usec(ITt_after);
+            
+            % Check if that jump has already been identified in another
+            % logger and indicated as an input to the function
+            if ~isfield(TransceiverReset,Tt_before) % No information of this jump from a previous logger extraction, just proceed and fix it
+                TransceiverReset.Tt_before = Tt_before;
+                TransceiverReset.Tt_after = Tt_after;
+                % Estimate the minimum time that elapsed during the jump using 2 logger
+                % reports that are at the begining and end of the jump
+                % (rounded to the nearest lower minute)
+                ILt_before = Ind_Logger_times(find(Ind_Logger_times>=BackInd(IB),1,'First'));
+                ILt_after = Ind_Logger_times(find(Ind_Logger_times<=ITt_after,1,'Last'));
+                TransceiverReset.ElapsedTime_usec = floor((Event_timestamps_usec_raw(ILt_after) - Event_timestamps_usec_raw(ILt_before))/(60*10^6)) .* (60*10^6);
+            elseif TransceiverReset.Tt_before == Tt_before
+                % This jump was already fixed from a previous logger extraction, use the same correction
+            else % There was a correction from a previous logger extraction but it might apply to a different jump in time? User input necessary to handle that!!
+                warning('This jump clock need some manual input, unsure about which correction to use!!\n')
+                keyboard
+            end
+            
+            % Correct all transceiver times before the jump by the estimated
+            % elapsed time
+            TransceiverReset.Correction_us = TransceiverReset.Tt_before - TransceiverReset.Tt_after + TransceiverReset.ElapsedTime_usec;
+            Event_timestamps_usec(1:BackInd(IB)) = Event_timestamps_usec(1:BackInd(IB)) - TransceiverReset.Correction_us;
+            % Correct the values of the clock drift for this reset of the transceiver clock
+            CD_sec(Ind_CD<=BackInd(IB)) = CD_sec(Ind_CD<=BackInd(IB)) + TransceiverReset.Correction_us/10^6; % we are in sec
+            Estimated_CD(Ind_Logger_times<=BackInd(IB)) = Estimated_CD(Ind_Logger_times<=BackInd(IB)) + TransceiverReset.Correction_us; % we are in us
+            
         elseif GoSignal==2
             keyboard
         else
             % doing no correction
         end
     end
+     
 end
 
 % Convert time logger stamps of clock difference reports to transceiver time stamps
@@ -527,6 +570,9 @@ title(sprintf('%s %s #Abherent Clock drift report: %d', LoggerType, SerialNumber
 % reported clock difference
 ylabel('Logger time - transceiver time (ms)')
 xlabel('Transceiver time (minutes) from recording start')
+if exist('BackInd', 'var') % plot the position of the clock jump
+    vline((Event_timestamps_usec(BackInd)-LoggerTime_ref)/(1e6*60),'g-','Clock Jump')
+end
 
 
 %% save event files in MATLAB format
@@ -540,6 +586,7 @@ if Save_event_file
     OUT.logger_type = LoggerType;
     OUT.Bat_id = BatID;
     OUT.Date = Date;
+    OUT.TransceiverReset = TransceiverReset;
     save(Filename,'-struct','OUT')
     disp(['Event data saved to: ' Filename])
     
@@ -611,7 +658,7 @@ if Save_voltage
         for File_i=1:Nfiles % for each .DAT file
             % open the data file
             Str = 'index: ';
-            IndLT2 = strfind(File_start_details{File_i},Str); %#ok<PFBNS>
+            IndLT2 = strfind(File_start_details{File_i},Str);
             File_num_ID=File_start_details{File_i}((IndLT2+length(Str)): end); % eg. find "003" from "File started. File index: 003"
             fName_Ind = arrayfun(@(x) contains(x.name,File_num_ID),dat_file_names);
             fprintf('Channel %d/%d Reading file %d/%d: %s...\n',active_channel_i,Nactive_channels,File_i,Nfiles,File_num_ID);
@@ -704,7 +751,7 @@ if Save_voltage
              % Extract voltage data for active channels
             AD_count_data=reshape(File_data,Num_channels,[]); % reshape the data: each row is the data for a channel
             if any(Ref_channel) % if a channel will be used as reference
-                AD_count_data=AD_count_data(Active_channels(active_channel_i)+1,:)-AD_count_data(Active_channels==Ref_channel,:); %#ok<PFBNS> % subtract the AD counts (equivalently, voltages) of the reference channel from those of all other channels
+                AD_count_data=AD_count_data(Active_channels(active_channel_i)+1,:)-AD_count_data(Active_channels==Ref_channel,:); % subtract the AD counts (equivalently, voltages) of the reference channel from those of all other channels
             else
                 AD_count_data=AD_count_data(Active_channels(active_channel_i)+1,:); % take only this active channel, note that Active_channels are the ID of channels on the logger from 0 to Num_channels-1
             end
@@ -715,8 +762,8 @@ if Save_voltage
             % transceiver and the logger according to timestamp of file
             % onsets
             if File_i<Nfiles && ~any(File_i==Ind_partial_files)
-                Estimated_channelFS_Transceiver(File_i) = length(AD_count_data)/(File_start_timestamps(File_i+1) - File_start_timestamps(File_i))*10^6; %#ok<PFBNS> % Estimated sample frequency of the channel for that file in Hz in transceiver time
-                Estimated_channelFS_Logger(File_i) = length(AD_count_data)/(File_start_timestamps_LogRef(File_i+1) - File_start_timestamps_LogRef(File_i))*10^6; %#ok<PFBNS> % Estimated sample frequency of the channel for that file in Hz in transceiver time
+                Estimated_channelFS_Transceiver(File_i) = length(AD_count_data)/(File_start_timestamps(File_i+1) - File_start_timestamps(File_i))*10^6;% Estimated sample frequency of the channel for that file in Hz in transceiver time
+                Estimated_channelFS_Logger(File_i) = length(AD_count_data)/(File_start_timestamps_LogRef(File_i+1) - File_start_timestamps_LogRef(File_i))*10^6;  % Estimated sample frequency of the channel for that file in Hz in transceiver time
                 Estimated_channelT_Transceiver(File_i) = (File_start_timestamps(File_i+1) - File_start_timestamps(File_i))/length(AD_count_data); % Estimated sampling period of the channel for that file in microseconds in transceiver time
                 Estimated_channelT_Logger(File_i) = (File_start_timestamps_LogRef(File_i+1) - File_start_timestamps_LogRef(File_i))/length(AD_count_data); % Estimated sampling period of the channel for that file in microseconds in transceiver time
             end
@@ -744,12 +791,12 @@ if Save_voltage
             File_timestamp_discrepancies_LogRef=File_start_timestamps_LogRef(File_i)/1000-File_timestamps_usec_from_sampling_period_LogRef/1000; % difference between the event log time stamp and the time stamp calculated by counting samples, after roundig both to integer ms
             
             Figure1; %#ok<VUNUS>
-            Ii_local = find(Ind_Logger_times == Ind_file_start(File_i)); %#ok<PFBNS>
+            Ii_local = find(Ind_Logger_times == Ind_file_start(File_i));
             hold on
             if File_i==Nfiles
                 legend('AutoUpdate','on')
             end
-            plot((File_start_timestamps(File_i)-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'g.', 'DisplayName', 'File onset log') %#ok<PFBNS> % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
+            plot((File_start_timestamps(File_i)-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'g.', 'DisplayName', 'File onset log')  % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
             plot((File_timestamps_usec_from_sampling_period-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'c.', 'DisplayName', 'File onset estimated') % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
             if File_i==Nfiles
                 hold off
@@ -765,7 +812,7 @@ if Save_voltage
                 if File_timestamp_discrepancies_ms(File_i)>0
                     fprintf('The file started %d ms after what was expected given the number of samples of previous file and sample frequency\n', File_timestamp_discrepancies_ms(File_i));
                 else
-                    error(' Data overlap, the file started %d ms before what was expected given the number of samples of previous file and sample frequency\n', File_timestamp_discrepancies_ms(File_i));
+                    warning(' Data overlap, the file started %d ms before what was expected given the number of samples of previous file and sample frequency\n', File_timestamp_discrepancies_ms(File_i));
                     keyboard
                 end
             end
@@ -842,7 +889,7 @@ if Save_voltage
                 StartedRecTime = Event_timestamps_usec(StartedRec);
                 StoppedRec = find(contains(Event_types_and_details, 'Mode change. Stopped recording'),1,'last');
                 StoppedRecTime = Event_timestamps_usec(StoppedRec);
-                FreeTextInd = find(contains(Event_types_and_details, 'Free text'));
+                FreeTextInd = logical(contains(Event_types_and_details, 'Free text'));
                 FreeTextTime = Event_timestamps_usec(FreeTextInd);
                 FreeTextTime = FreeTextTime(FreeTextTime<(StoppedRecTime-100000)); % Get rid of Free texts that were sent too close from or after the end of recordings (within 100ms before the Mode change is log on the event file the recording already stopped)
                 FreeTextTime = FreeTextTime(FreeTextTime>StartedRecTime); % Get rid of Free texts that were sent before the begining of recordings
@@ -896,7 +943,7 @@ if Save_voltage
                     clf(F20)
                 end
                 
-                SystCheckInd = find(contains(Event_types_and_details, 'CD='));
+                SystCheckInd = logical(contains(Event_types_and_details, 'CD='));
                 SystCheckTime = Event_timestamps_usec(SystCheckInd);
                 SystCheckTime = SystCheckTime(~isnan(SystCheckTime)); % Get rid of nan values
                 SystCheckTime = SystCheckTime(SystCheckTime<(StoppedRecTime-100000)); % Get rid of system checks that are too close from the end of recordings (within 100ms before the Mode change is log on the event file the recording already stopped)
@@ -979,7 +1026,7 @@ if Save_voltage
 %                 OUTDAT.Filtered_voltage_trace= Filtered_voltage_trace;
                 OUTDAT.DataDeletionOnsetOffset_usec = DataDeletionOnsetOffset_usec{active_channel_i};
                 OUTDAT.DataDeletionOnsetOffset_sample = DataDeletionOnsetOffset_sample{active_channel_i};
-                parsave(Filename_temp, Filtered_voltage_trace);
+                save(Filename_temp, 'Filtered_voltage_trace','-v7.3');
                 clear Peaks_positions Filtered_voltage_trace
                 if CheckSpike    
                     [Spike_arrival_times, Snippets] = extract_tetrode_snippets(OUTDAT.Peaks_positions, Output_folder, Active_channels(active_channel_i));
@@ -1114,7 +1161,7 @@ if Save_voltage
         for tt=1:Num_tetrodes    
             % select the active channels for that bundle
             Active_channels_local = Active_channels(logical((Active_channels <(tt*Num_EperBundle)) .* (Active_channels >=((tt-1)*Num_EperBundle))));
-            [Spike_arrival_times, Snippets] = extract_tetrode_snippets(Final_Peaks_positions{tt}, Output_folder, Active_channels_local); %#ok<ASGLU>
+            [Spike_arrival_times, Snippets] = extract_tetrode_snippets(Final_Peaks_positions{tt}, Output_folder, Active_channels_local); 
             if CheckSpike
                plot_spike_snippets(Spike_arrival_times, Snippets,nanmean(Estimated_channelFS_Transceiver));
            end
@@ -1173,7 +1220,7 @@ if Save_param_figure
         OUT.ADC_unwritten_data_value=ADC_unwritten_data;
     end
     OUT.date_time_of_processing=date_time_of_processing;
-    OUT.last_code_update=last_code_update; %#ok<STRNU>
+    OUT.last_code_update=last_code_update; 
     save(Filename,'-struct','OUT')
     close all
 end
@@ -1182,7 +1229,7 @@ if Diary
 end
  end
 
- function parsave(Filename, Struct) %#ok<INUSD>
+ function parsave(Filename, Struct) 
  S = whos('Struct');
  if S.bytes>2*10^9
     save(Filename,'-struct','Struct','-v7.3')
