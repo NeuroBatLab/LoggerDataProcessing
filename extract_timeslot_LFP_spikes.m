@@ -191,6 +191,7 @@ if Flag(3)
     end
 else
     SpikeT=[];
+    SpikeTDeNoiseInd=[];
 end
 %% Extract the spike sorted spike of each single unit for each indicated set of onset/offset time points
 if Flag(4)
