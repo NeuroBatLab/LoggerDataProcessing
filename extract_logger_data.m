@@ -170,6 +170,11 @@ for cc=1:6
 end
 
 % Identify all columns
+if 1 ~= find(strcmp(Header, 'Event Number'))
+    error(' The first column does not correspond to event number\n')
+else
+    Event_number=Data{1}; % Event Number in the event file
+end
 if 3 ~= find(strcmp(Header, 'Time (ms from midnight)'))
     error(' The third column does not correspond to the time from midnight\n')
 else
@@ -231,6 +236,7 @@ Event_timestamps_usec_raw = Event_timestamps_usec_raw(Start:Stop);
 Event_timestamps_source = Event_timestamps_source(Start:Stop);
 Event_types = Event_types(Start:Stop);
 Event_types_and_details = Event_types_and_details(Start:Stop);
+Event_number = Event_number(Start:Stop);
 
 % Extract logger parameters
 % find the first line in the log that give setting details info
@@ -455,7 +461,7 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     % Convert the events that were logged in logger time
     % to transceiver time for each chunck of data
     if length(Ind_CD_local)==1 % if there is only one reported clock difference in the current interval, then use that for all unreported clock differences
-        warning('Only one clock drift value for the %dth section of data\nbetween consecutive clock synchronization events or start stop events\nClock drift might not be well estimated\n',unsync_i);
+        warning('Only one clock drift value for the %dth section of data containing %d time points that need correction\nbetween consecutive clock synchronization events or start stop events\nClock drift might not be well estimated\n',unsync_i, length(Ind_logger_times_local));
         Estimated_CD(Ind_Logger_times_local)=CD_sec_local*1e6;
     else
         % Estimate the clock differences in microseconds at all the time points in the
@@ -488,7 +494,7 @@ Event_timestamps_usec = Event_timestamps_usec_raw;
 Event_timestamps_usec(Ind_Logger_times)=Event_timestamps_usec(Ind_Logger_times) - Estimated_CD; % convert the time stamps that were originally logger times to transceiver times
 %Event_timestamps_usec=round(Event_timestamps_usec); % round all time stamps to integer microseconds
 
-% Check that trasnceiver time is continuously increasing. If not and the 
+% Check that transceiver time is continuously increasing. If not and the 
 % time difference is higher than 1 sec (10^6usec) most
 % likely a reset of the clock happened just before a synchronization event
 % or onset/offset event, or the transceiver was exchanged. We want to correct for that.
@@ -497,50 +503,56 @@ if any(diff(Event_timestamps_usec)<-10^6) % The transceiver clock went back in t
     BackInd = find(DiffTime<-10^6);
     fprintf(1,'The transceiver clock jumped back in time %d times\n', length(BackInd));
     for IB = 1:length(BackInd)
-        fprintf(1,'\nJump %d of %.2f ms between event\n%s\nand event\n%s\n',IB, DiffTime(BackInd(IB))/10^3,Event_types_and_details{BackInd(IB)},Event_types_and_details{BackInd(IB)+1});
-        GoSignal = input('Correcting for the clock jump? No:0; Yes:1; Debug mode:2');
-        if GoSignal==1
-            % Calculate the time difference of 2 transceiver reports that
-            % are each apart from the jump
-            Ind_Transc_times=find(contains(Event_timestamps_source,'Transceiver')); % events originally logged with transceiver time stamps
-            ITt_before = Ind_Transc_times(find(Ind_Transc_times<=BackInd(IB),1,'Last'));
-            ITt_after = Ind_Transc_times(find(Ind_Transc_times>BackInd(IB),1,'First'));
-            Tt_before = Event_timestamps_usec(ITt_before);
-            Tt_after = Event_timestamps_usec(ITt_after);
-            
-            % Check if that jump has already been identified in another
-            % logger and indicated as an input to the function
-            if ~isfield(TransceiverReset,Tt_before) % No information of this jump from a previous logger extraction, just proceed and fix it
-                TransceiverReset.Tt_before = Tt_before;
-                TransceiverReset.Tt_after = Tt_after;
-                % Estimate the minimum time that elapsed during the jump using 2 logger
-                % reports that are at the begining and end of the jump
-                % (rounded to the nearest lower minute)
-                ILt_before = Ind_Logger_times(find(Ind_Logger_times>=BackInd(IB),1,'First'));
-                ILt_after = Ind_Logger_times(find(Ind_Logger_times<=ITt_after,1,'Last'));
-                TransceiverReset.ElapsedTime_usec = floor((Event_timestamps_usec_raw(ILt_after) - Event_timestamps_usec_raw(ILt_before))/(60*10^6)) .* (60*10^6);
-            elseif TransceiverReset.Tt_before == Tt_before
-                % This jump was already fixed from a previous logger extraction, use the same correction
-            else % There was a correction from a previous logger extraction but it might apply to a different jump in time? User input necessary to handle that!!
-                warning('This jump clock need some manual input, unsure about which correction to use!!\n')
+        % Check if that jump corresponds to a Startup line. If that the
+        % case, just ignore
+        if contains(Event_types_and_details{BackInd(IB)}, 'Startup') || contains(Event_types_and_details{BackInd(IB)+1}, 'Startup')
+            % ignore, these lines are not used
+        else % propose correction
+            fprintf(1,'\nJump %d of %.2f ms between event # %s\n%s\nand event # %s\n%s\n',IB, DiffTime(BackInd(IB))/10^3,Event_number{BackInd(IB)}, Event_types_and_details{BackInd(IB)},Event_number{BackInd(IB)+1}, Event_types_and_details{BackInd(IB)+1});
+            GoSignal = input('Correcting for the clock jump? No:0; Yes:1; Debug mode:2');
+            if GoSignal==1
+                % Calculate the time difference of 2 transceiver reports that
+                % are each apart from the jump
+                Ind_Transc_times=find(contains(Event_timestamps_source,'Transceiver')); % events originally logged with transceiver time stamps
+                ITt_before = Ind_Transc_times(find(Ind_Transc_times<=BackInd(IB),1,'Last'));
+                ITt_after = Ind_Transc_times(find(Ind_Transc_times>BackInd(IB),1,'First'));
+                Tt_before = Event_timestamps_usec(ITt_before);
+                Tt_after = Event_timestamps_usec(ITt_after);
+                
+                % Check if that jump has already been identified in another
+                % logger and indicated as an input to the function
+                if ~isfield(TransceiverReset,Tt_before) % No information of this jump from a previous logger extraction, just proceed and fix it
+                    TransceiverReset.Tt_before = Tt_before;
+                    TransceiverReset.Tt_after = Tt_after;
+                    % Estimate the minimum time that elapsed during the jump using 2 logger
+                    % reports that are at the begining and end of the jump
+                    % (rounded to the nearest lower minute)
+                    ILt_before = Ind_Logger_times(find(Ind_Logger_times>=BackInd(IB),1,'First'));
+                    ILt_after = Ind_Logger_times(find(Ind_Logger_times<=ITt_after,1,'Last'));
+                    TransceiverReset.ElapsedTime_usec = floor((Event_timestamps_usec_raw(ILt_after) - Event_timestamps_usec_raw(ILt_before))/(60*10^6)) .* (60*10^6);
+                elseif TransceiverReset.Tt_before == Tt_before
+                    % This jump was already fixed from a previous logger extraction, use the same correction
+                else % There was a correction from a previous logger extraction but it might apply to a different jump in time? User input necessary to handle that!!
+                    warning('This jump clock need some manual input, unsure about which correction to use!!\n')
+                    keyboard
+                end
+                
+                % Correct all transceiver times before the jump by the estimated
+                % elapsed time
+                TransceiverReset.Correction_us = TransceiverReset.Tt_before - TransceiverReset.Tt_after + TransceiverReset.ElapsedTime_usec;
+                Event_timestamps_usec(1:BackInd(IB)) = Event_timestamps_usec(1:BackInd(IB)) - TransceiverReset.Correction_us;
+                % Correct the values of the clock drift for this reset of the transceiver clock
+                CD_sec(Ind_CD<=BackInd(IB)) = CD_sec(Ind_CD<=BackInd(IB)) + TransceiverReset.Correction_us/10^6; % we are in sec
+                Estimated_CD(Ind_Logger_times<=BackInd(IB)) = Estimated_CD(Ind_Logger_times<=BackInd(IB)) + TransceiverReset.Correction_us; % we are in us
+                
+            elseif GoSignal==2
                 keyboard
+            else
+                % doing no correction
             end
-            
-            % Correct all transceiver times before the jump by the estimated
-            % elapsed time
-            TransceiverReset.Correction_us = TransceiverReset.Tt_before - TransceiverReset.Tt_after + TransceiverReset.ElapsedTime_usec;
-            Event_timestamps_usec(1:BackInd(IB)) = Event_timestamps_usec(1:BackInd(IB)) - TransceiverReset.Correction_us;
-            % Correct the values of the clock drift for this reset of the transceiver clock
-            CD_sec(Ind_CD<=BackInd(IB)) = CD_sec(Ind_CD<=BackInd(IB)) + TransceiverReset.Correction_us/10^6; % we are in sec
-            Estimated_CD(Ind_Logger_times<=BackInd(IB)) = Estimated_CD(Ind_Logger_times<=BackInd(IB)) + TransceiverReset.Correction_us; % we are in us
-            
-        elseif GoSignal==2
-            keyboard
-        else
-            % doing no correction
         end
     end
-     
+    
 end
 
 % Convert time logger stamps of clock difference reports to transceiver time stamps
@@ -571,7 +583,10 @@ title(sprintf('%s %s #Abherent Clock drift report: %d', LoggerType, SerialNumber
 ylabel('Logger time - transceiver time (ms)')
 xlabel('Transceiver time (minutes) from recording start')
 if exist('BackInd', 'var') % plot the position of the clock jump
-    vline((Event_timestamps_usec(BackInd)-LoggerTime_ref)/(1e6*60),'g-','Clock Jump')
+    Xval = (Event_timestamps_usec(BackInd)-LoggerTime_ref)/(1e6*60);
+    Yval = get(gca, 'YLim');
+    line([Xval Xval], Yval, 'g-')
+    text(Xval, diff(Yval)/2, 'Clock Jump', 'Color','g')
 end
 
 
