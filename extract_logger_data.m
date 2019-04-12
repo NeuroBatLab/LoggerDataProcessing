@@ -461,7 +461,7 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     % Convert the events that were logged in logger time
     % to transceiver time for each chunck of data
     if length(Ind_CD_local)==1 % if there is only one reported clock difference in the current interval, then use that for all unreported clock differences
-        warning('Only one clock drift value for the %dth section of data containing %d time points that need correction\nbetween consecutive clock synchronization events or start stop events\nClock drift might not be well estimated\n',unsync_i, length(Ind_logger_times_local));
+        warning('Only one clock drift value for the %dth section of data containing %d time points that need correction\nbetween consecutive clock synchronization events or start stop events\nClock drift might not be well estimated\n',unsync_i, length(Ind_Logger_times_local));
         Estimated_CD(Ind_Logger_times_local)=CD_sec_local*1e6;
     else
         % Estimate the clock differences in microseconds at all the time points in the
