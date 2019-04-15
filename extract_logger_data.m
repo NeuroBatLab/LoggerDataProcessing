@@ -344,7 +344,7 @@ IndLT = find(contains(Event_types_and_details,Str),1);
 IndLT2 = strfind(Event_types_and_details{IndLT},Str);
 IndLT3 = strfind(Event_types_and_details{IndLT},' bits');
 IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-ADC_zero_voltage = str2double(Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1)));
+ADC_zero_voltage = int16(str2double(Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1))));
 
 % get the AD count for unwritten data.
 % When recording is stopped (at the end of a recording session or in the
@@ -584,9 +584,9 @@ ylabel('Logger time - transceiver time (ms)')
 xlabel('Transceiver time (minutes) from recording start')
 if exist('BackInd', 'var') % plot the position of the clock jump
     Xval = (Event_timestamps_usec(BackInd)-LoggerTime_ref)/(1e6*60);
-    Yval = get(gca, 'YLim');
-    line([Xval Xval], Yval, 'g-')
-    text(Xval, diff(Yval)/2, 'Clock Jump', 'Color','g')
+    Yval = get(gca, 'YLim')';
+%     line([Xval Xval], Yval, 'g-')
+%     text(Xval, diff(Yval)/2, 'Clock Jump', 'Color','g')
 end
 
 
@@ -659,7 +659,7 @@ if Save_voltage
     
     dat_file_names = dir(fullfile(Input_folder,[Dat_rootname '*.DAT']));
     % Loop through channels then through files and extract data
-    for active_channel_i=1:Nactive_channels
+    for active_channel_i=8:Nactive_channels
         % Loop through dat files and extract data
         Missing_files = nan(Nfiles,1); % this logical vector keeps track of missing files
         Ind_first_file=1; % as the code processes each .DAT file in sequence, this variable will be updated to reflect the index of the first file during the current period of continuous recording (eg. if recording was stopped and restarted during one experimental session, this would be the first file after recording was restarted)
@@ -694,8 +694,15 @@ if Save_voltage
                 Missing_files(File_i)=0;
             end
             File_id=fopen(fullfile(Input_folder,File_name)); % open the .DAT file for binary read access by MATLAB
-            File_data=fread(File_id,ADC_data_format); % import the AD count data as a single column vector with the class indicated by the logger
+            File_data=int16(fread(File_id,ADC_data_format)); % import the AD count data as a single column vector with the class indicated by the logger
             fclose(File_id); % close the .DAT file
+            
+            if isempty(File_data)
+               fclose('all');
+               File_id=fopen(fullfile(Input_folder,File_name)); % open the .DAT file for binary read access by MATLAB
+               File_data=int16(fread(File_id,ADC_data_format)); % import the AD count data as a single column vector with the class indicated by the logger
+               fclose(File_id); % close the .DAT file
+            end
             
             % Initialize output vectors for the channel
             if find(~Missing_files(~isnan(Missing_files)),1, 'first') == File_i %  True for the first .DAT file loaded
@@ -895,6 +902,27 @@ if Save_voltage
             
             AD_count_channeli_all_files = AD_count_channeli_all_files(1:FirstNan(active_channel_i)-1); % delete the unwritten samples
             
+            Filename=fullfile(Output_folder, sprintf('%s_%s_CSC%d.mat', BatID, Date, Active_channels(active_channel_i))); % going with the following numbering convention: the first channel is channel 0, the second channel is channel 1, etc.
+            Filename_temp=fullfile(Output_folder, sprintf('%s_%s_CSC%d_temp.mat', BatID, Date, Active_channels(active_channel_i)));
+            OUTDAT = struct();
+            OUTDAT.Bat_id = BatID;
+            OUTDAT.Date = Date;
+            OUTDAT.logger_serial_number = SerialNumber;
+            OUTDAT.logger_type = LoggerType;
+            OUTDAT.AD_count_int16=int16(AD_count_channeli_all_files); 
+            OUTDAT.Indices_of_first_and_last_samples=Ind_firstNlast_samples;
+            OUTDAT.Estimated_channelFS_Transceiver = Estimated_channelFS_Transceiver; % Exact value of sample frequency for each file according to transceiver clock
+            OUTDAT.Timestamps_of_first_samples_usec=Timestamps_first_samples_usec;
+            OUTDAT.Timestamps_of_first_samples_usec_Logger=Timestamps_first_samples_usec_Logger;
+            OUTDAT.CD_correction_data = struct('CD_logger_stamps',CD_logger_stamps(Ind_CD_local),'CD_sec',CD_sec_local,'Clock_difference_estimation',CD_Estimation);
+            OUTDAT.Samples_per_channel_per_file=Samples_per_channel_per_file(active_channel_i);
+            OUTDAT.Sampling_period_usec_Logger=1e6/FS;
+            OUTDAT.AD_count_to_uV_factor=ADC2uV_resolution;
+            OUTDAT.indices_missing_data_files=find(Missing_files);
+            OUTDAT.File_timestamp_discrepancies_ms=File_timestamp_discrepancies_ms;
+            save(Filename,'-struct','OUTDAT','-v7.3')
+            clear OUTDAT
+            
             % If neural data, supress data where artifacts are detected (RF
             % signal emission by the logger causing pulses in the signal)
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
@@ -915,7 +943,8 @@ if Save_voltage
                 % calculate the average voltage in the preceding 5ms and
                 % find all points in the next 5ms that are 10 times the SD away from the
                 % mean, and replace them by NaNs
-                Voltage_Trace = double(int16(AD_count_channeli_all_files))*ADC2uV_resolution;
+                Voltage_Trace = double(AD_count_channeli_all_files)*ADC2uV_resolution;
+                clear AD_count_channeli_all_files
                 F20=figure(20);
                 for tt=1:length(FreeTextSamples)
                     Local_Voltage = Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug):round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug)));
@@ -1018,37 +1047,20 @@ if Save_voltage
             
             
             % save the data
-            Filename=fullfile(Output_folder, sprintf('%s_%s_CSC%d.mat', BatID, Date, Active_channels(active_channel_i))); % going with the following numbering convention: the first channel is channel 0, the second channel is channel 1, etc.
-            Filename_temp=fullfile(Output_folder, sprintf('%s_%s_CSC%d_temp.mat', BatID, Date, Active_channels(active_channel_i)));
-            OUTDAT = struct();
-            OUTDAT.Bat_id = BatID;
-            OUTDAT.Date = Date;
-            OUTDAT.logger_serial_number = SerialNumber;
-            OUTDAT.logger_type = LoggerType;
-            OUTDAT.AD_count_int16=int16(AD_count_channeli_all_files); %data converted to signed 16-bit integers
-            OUTDAT.Indices_of_first_and_last_samples=Ind_firstNlast_samples;
-            OUTDAT.Estimated_channelFS_Transceiver = Estimated_channelFS_Transceiver; % Exact value of sample frequency for each file according to transceiver clock
-            OUTDAT.Timestamps_of_first_samples_usec=Timestamps_first_samples_usec;
-            OUTDAT.Timestamps_of_first_samples_usec_Logger=Timestamps_first_samples_usec_Logger;
-            OUTDAT.CD_correction_data = struct('CD_logger_stamps',CD_logger_stamps(Ind_CD_local),'CD_sec',CD_sec_local,'Clock_difference_estimation',CD_Estimation);
-            OUTDAT.Samples_per_channel_per_file=Samples_per_channel_per_file(active_channel_i);
-            OUTDAT.Sampling_period_usec_Logger=1e6/FS;
-            OUTDAT.AD_count_to_uV_factor=ADC2uV_resolution;
-            OUTDAT.indices_missing_data_files=find(Missing_files);
-            OUTDAT.File_timestamp_discrepancies_ms=File_timestamp_discrepancies_ms;
+            
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
-                OUTDAT.Peaks_positions= Peaks_positions;
-%                 OUTDAT.Filtered_voltage_trace= Filtered_voltage_trace;
-                OUTDAT.DataDeletionOnsetOffset_usec = DataDeletionOnsetOffset_usec{active_channel_i};
-                OUTDAT.DataDeletionOnsetOffset_sample = DataDeletionOnsetOffset_sample{active_channel_i};
+                OUTDAT_spikes.Peaks_positions= Peaks_positions;
+                OUTDAT_spikes.DataDeletionOnsetOffset_usec = DataDeletionOnsetOffset_usec{active_channel_i};
+                OUTDAT_spikes.DataDeletionOnsetOffset_sample = DataDeletionOnsetOffset_sample{active_channel_i};
+                
                 save(Filename_temp, 'Filtered_voltage_trace','-v7.3');
                 clear Peaks_positions Filtered_voltage_trace
                 if CheckSpike    
-                    [Spike_arrival_times, Snippets] = extract_tetrode_snippets(OUTDAT.Peaks_positions, Output_folder, Active_channels(active_channel_i));
+                    [Spike_arrival_times, Snippets] = extract_tetrode_snippets(OUTDAT_spikes.Peaks_positions, Output_folder, Active_channels(active_channel_i));
                     plot_spike_snippets(Spike_arrival_times, Snippets,nanmean(Estimated_channelFS_Transceiver));
                 end
+                save(Filename,'-struct','OUTDAT_spikes','-append')
             end
-            parsave(Filename,OUTDAT)
             fprintf('Voltage trace of channel %d saved to %s\n', Active_channels(active_channel_i), Filename)
         end
         disp(['Files for which the start event time-stamp read from event log differ by 1 ms from the value obtained by calculation:  ' num2str(sum(abs(File_timestamp_discrepancies_ms)==1)) ' files...'])
@@ -1064,25 +1076,27 @@ if Save_voltage
                 clear Figure2
             end
         end
-        clear OUTDAT AD_count_channeli_all_files
+        clear Voltage_Trace OUTDAT_spikes OUTDAT AD_count_channeli_all_files
     end
     
     % check that all channels where stopped recording at the same sample
     FirstNan = unique(FirstNan);
     if length(FirstNan)>1
         disp('Indices of first unwriten values in all the AD_count_all_channeli_all_files')
-        FirstNaN
+        disp(FirstNan)
         error('Error of data allignment, written data were not stopped at the same sample\n')
     end
     
     % If neural data, harmonize and save the time periods where data were replaced by NaNs because of RF signal artifact
     % sort the potential spike arrival times on tetrode bundles to
     % only keep one 4 dimensional snippet per spike
+    
     if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
+        %%
         fprintf(1,'-> Harmonizing and Saving data cleaning info for future reference\n')
         % for each event keep the earlier onset and the latest offset of
         % the data sequence suspected to have the pulses
-        NRFArtifact = size(DataDeletionOnsetOffset_usec{1},1);
+        NRFArtifact = size(DataDeletionOnsetOffset_usec{8},1);
         DataDeletionOnsetOffset_usec_sync = nan(NRFArtifact,2);
         DataDeletionOnsetOffset_sample_sync = nan(NRFArtifact,2);
         for aa=1:NRFArtifact
@@ -1143,7 +1157,7 @@ if Save_voltage
             end
         end
         
-        
+        %%
         % Now eliminate all potential spikes that are most likely noise.
         % Criteria: all threshold crossing peaks that are detected on all 4
         % tetrodes within a 50us window <-> FS*50^-6 samples
@@ -1189,7 +1203,7 @@ if Save_voltage
             save(Filename_Snip,'Snippets', 'Date', 'BatID','SerialNumber','-v7.3');
             fprintf(1,'Spike times and snippets of tetrode %d saved in\n%s\n and%s\n',tt,Filename_ST, Filename_Snip);
         end
-        
+        %%
         % erase the temporary files containing the filtered voltage trace
         % of each channel
         Temp_dir=dir(fullfile(Output_folder, sprintf('%s_%s_CSC*_temp.mat', BatID,Date)));
@@ -1204,7 +1218,7 @@ if Save_voltage
             mat2ntt(Output_folder);
         end
     end
-    
+    %%
 end
 
 %% Save the options and parameters that were used
@@ -1244,11 +1258,6 @@ if Diary
 end
  end
 
- function parsave(Filename, Struct) 
- S = whos('Struct');
- if S.bytes>2*10^9
-    save(Filename,'-struct','Struct','-v7.3')
- else
-     save(Filename,'-struct','Struct')
+ function parsave(Filename, Struct)
+ save(Filename,'-struct','Struct','-v7.3')
  end
-end
