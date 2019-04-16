@@ -42,9 +42,36 @@ Peak_voltage_out = Peak_voltage_out(1:Num_Peaks_Current);
 %% Find peaks that are separated by a minimum distance; if two peaks are
 % within that distance, only find the higher peak they most likely
 % correspond to the same spike
-Voltage_peaks = zeros(max(Peak_positions_out)+1,1);
-Voltage_peaks(Peak_positions_out) = Peak_voltage_out;
-[Voltage_of_peaks,Sample_indices_of_peaks]=findpeaks(Voltage_peaks,'MinPeakDistance',MinPeakSpacing);
+% 
+% Voltage_peaks = zeros(max(Peak_positions_out)+1,1);
+% Voltage_peaks(Peak_positions_out) = Peak_voltage_out;
+% [Voltage_of_peaks,Sample_indices_of_peaks]=findpeaks(Voltage_peaks,'MinPeakDistance',MinPeakSpacing);
+
+[Peak_positions_out, peak_sort_idx] = sort(Peak_positions_out);
+Peak_voltage_out = Peak_voltage_out(peak_sort_idx);
+neighboring_peak_idx = find(diff(Peak_positions_out)<MinPeakSpacing);
+round_k = 1;
+while ~isempty(neighboring_peak_idx)
+    
+    peak_positions_to_keep = true(1,length(Peak_positions_out));
+    
+    for neighbor_k = 1:length(neighboring_peak_idx)
+        neighboring_idxs = [neighboring_peak_idx(neighbor_k) neighboring_peak_idx(neighbor_k)+1];
+        [~,min_peak_idx] = min(Peak_voltage_out(neighboring_idxs));
+        peak_positions_to_keep(neighboring_idxs(min_peak_idx)) = false;
+    end
+    if round_k > 5
+        break
+    end
+    round_k = round_k + 1;
+    
+    Peak_positions_out = Peak_positions_out(peak_positions_to_keep);
+    Peak_voltage_out = Peak_voltage_out(peak_positions_to_keep);    
+    
+    neighboring_peak_idx = find(diff(Peak_positions_out)<MinPeakSpacing);
+end
+
+Sample_indices_of_peaks = Peak_positions_out;
 
 if FIG
     figure()

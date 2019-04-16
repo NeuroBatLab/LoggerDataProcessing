@@ -659,7 +659,7 @@ if Save_voltage
     
     dat_file_names = dir(fullfile(Input_folder,[Dat_rootname '*.DAT']));
     % Loop through channels then through files and extract data
-    for active_channel_i=8:Nactive_channels
+    for active_channel_i = 1:Nactive_channels
         % Loop through dat files and extract data
         Missing_files = nan(Nfiles,1); % this logical vector keeps track of missing files
         Ind_first_file=1; % as the code processes each .DAT file in sequence, this variable will be updated to reflect the index of the first file during the current period of continuous recording (eg. if recording was stopped and restarted during one experimental session, this would be the first file after recording was restarted)
@@ -904,6 +904,7 @@ if Save_voltage
             
             Filename=fullfile(Output_folder, sprintf('%s_%s_CSC%d.mat', BatID, Date, Active_channels(active_channel_i))); % going with the following numbering convention: the first channel is channel 0, the second channel is channel 1, etc.
             Filename_temp=fullfile(Output_folder, sprintf('%s_%s_CSC%d_temp.mat', BatID, Date, Active_channels(active_channel_i)));
+            
             OUTDAT = struct();
             OUTDAT.Bat_id = BatID;
             OUTDAT.Date = Date;
@@ -1039,22 +1040,22 @@ if Save_voltage
                 % If Neural data, extract position of potential spike on
                 % the voltage trace that was cleaned from the RF Artifacts
                 if sum(Missing_files)
-                    [Peaks_positions, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples, 'MissingFiles',find(Missing_files),'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
+                    [Peaks_positions, Peaks_voltage_values, Filtered_voltage_trace, Voltage_dynamic_range]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample{active_channel_i}, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples, 'MissingFiles',find(Missing_files),'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
                 else
-                    [Peaks_positions, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples,'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
+                    [Peaks_positions, Peaks_voltage_values, Filtered_voltage_trace, Voltage_dynamic_range]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample{active_channel_i}, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples,'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
                 end
             end    
-            
             
             % save the data
             
             if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
-                OUTDAT_spikes.Peaks_positions= Peaks_positions;
+                OUTDAT_spikes.Peaks_positions = Peaks_positions;
+                OUTDAT_spikes.Peaks_voltage_values =  Peaks_voltage_values;
                 OUTDAT_spikes.DataDeletionOnsetOffset_usec = DataDeletionOnsetOffset_usec{active_channel_i};
                 OUTDAT_spikes.DataDeletionOnsetOffset_sample = DataDeletionOnsetOffset_sample{active_channel_i};
                 
-                save(Filename_temp, 'Filtered_voltage_trace','-v7.3');
-                clear Peaks_positions Filtered_voltage_trace
+                save(Filename_temp, 'Filtered_voltage_trace','Voltage_dynamic_range','-v7.3');
+                clear Peaks_positions Peaks_voltage_values Filtered_voltage_trace
                 if CheckSpike    
                     [Spike_arrival_times, Snippets] = extract_tetrode_snippets(OUTDAT_spikes.Peaks_positions, Output_folder, Active_channels(active_channel_i));
                     plot_spike_snippets(Spike_arrival_times, Snippets,nanmean(Estimated_channelFS_Transceiver));
@@ -1084,7 +1085,7 @@ if Save_voltage
     if length(FirstNan)>1
         disp('Indices of first unwriten values in all the AD_count_all_channeli_all_files')
         disp(FirstNan)
-        error('Error of data allignment, written data were not stopped at the same sample\n')
+%         error('Error of data allignment, written data were not stopped at the same sample\n')
     end
     
     % If neural data, harmonize and save the time periods where data were replaced by NaNs because of RF signal artifact
@@ -1123,7 +1124,7 @@ if Save_voltage
             All_Peaks_voltage = cell(length(Active_channels_local),1);
             for channel_i = 1:length(Active_channels_local)
                 FileName=fullfile(Output_folder, sprintf('%s_%s_CSC%d.mat', BatID,Date, Active_channels_local(channel_i)));
-                D=load(FileName, 'Peaks_positions');
+                D=load(FileName, 'Peaks_positions','Peaks_voltage_value');
                 % identifying peaks that were detected within an artefact
                 % period and erase them
                 FalsePeaksInd = cell(NRFArtifact,1);
@@ -1131,12 +1132,9 @@ if Save_voltage
                     FalsePeaksInd{aa} = find((D.Peaks_positions<DataDeletionOnsetOffset_sample_sync(aa,2)) .* (D.Peaks_positions>DataDeletionOnsetOffset_sample_sync(aa,1)));
                 end
                 FalsePeaksInd = cell2mat(FalsePeaksInd');
-                D.Peaks_positions(FalsePeaksInd) = [];
-                All_Peaks_positions{channel_i} = D.Peaks_positions;
-                clear D
-                FileName_temp=fullfile(Output_folder, sprintf('%s_%s_CSC%d_temp.mat', BatID,Date, Active_channels_local(channel_i)));
-                D=load(FileName_temp, 'Filtered_voltage_trace');
-                All_Peaks_voltage{channel_i}= D.Filtered_voltage_trace(All_Peaks_positions{channel_i});
+                
+                All_Peaks_positions{channel_i} = D.Peaks_positions(~FalsePeaksInd);
+                All_Peaks_voltage{channel_i}= D.Spike_voltage_values(~FalsePeaksInd);
                 clear D
             end
             % combine the peaks
@@ -1164,7 +1162,7 @@ if Save_voltage
         fprintf(1, 'Eliminate noise peaks\n')
         D=load(FileName,'Estimated_channelFS_Transceiver');
         SampWinThresh = nanmean(D.Estimated_channelFS_Transceiver)*SpikeCollisionTolerance*10^-6;
-        All_peaks_positions = cat(1,Final_Peaks_positions{:}); % The positions of all detected peak converted to a one dimensional vector
+        All_peaks_positions = [Final_Peaks_positions{:}]; % The positions of all detected peak converted to a one dimensional vector
         All_peaks_tetrode = nan(sum(Num_peaks),1); % The Channel number on which the peaks are detected
         CumSum_peaks = [0; cumsum(Num_peaks)];
         Noisy_points = 0;

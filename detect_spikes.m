@@ -1,4 +1,4 @@
-function [Sample_indices_of_peaks, Voltage_Trace]=detect_spikes(Voltage_Trace, FS, IndFirstNLastSamples, varargin)
+function [Sample_indices_of_peaks, Peak_Values, Voltage_Trace, Voltage_dynamic_range]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample, FS, IndFirstNLastSamples, varargin)
 %% This function return the potential spike position in a raw voltage trace as long as the filtered voltage trace
 % Voltage_Trace         Raw voltage trace given as a vector.
 % FS                            Sample frequency of the voltage trace
@@ -44,36 +44,32 @@ function [Sample_indices_of_peaks, Voltage_Trace]=detect_spikes(Voltage_Trace, F
 %                               require user input to continue
 
 %% Sorting input arguments
-pnames = {'SpikeTreshMethod', 'ManualSpikeThresh', 'AutoSpikeThreshFactor', 'BandPassFilter','MissingFiles','FigCheck'};
-dflts  = {'auto', 40,3, [600 6000],[],0};
-[SpikeThreshMeth, ManualSpikeThresh, AutoSpikeThreshFactor, BandPassFilter,  MissingFiles, FigCheck] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'SpikeTreshMethod', 'ManualSpikeThresh', 'AutoSpikeThreshFactor', 'BandPassFilter','MissingFiles','FigCheck','Voltage_dynamic_range'};
+dflts  = {'auto', 40,3, [600 6000],[],0,1e5};
+[SpikeThreshMeth, ManualSpikeThresh, AutoSpikeThreshFactor, BandPassFilter,  MissingFiles, FigCheck, Voltage_dynamic_range] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 %% Bandpass filter the input raw voltage
 [b,a]=butter(6,BandPassFilter/(FS/2),'bandpass'); % a 12th order Butterworth band-pass filter; the second input argument is normalized cut-off frequency (ie. normalized to the Nyquist frequency, which is half the sampling frequency, as required by MATLAB)
 
 % Bandpass filtering is applied to continous chunks of recordings.
-Chuncks = [1 length(Voltage_Trace)];
+Chunks = [1 length(Voltage_Trace)];
 if ~isempty(MissingFiles)
     Ind_firstNlast_samples_MissingFiles = IndFirstNLastSamples(MissingFiles,:);
-    Chuncks = [1;Ind_firstNlast_samples_MissingFiles(1:(end-1),2)+1 Ind_firstNlast_samples_MissingFiles(:,1)];
+    Chunks = [1;Ind_firstNlast_samples_MissingFiles(1:(end-1),2)+1 Ind_firstNlast_samples_MissingFiles(:,1)];
 end
-% Identify NaNs chuncks within the continuous recording
-for cc=1:size(Chuncks,1)
-    Local_Voltage = Voltage_Trace(Chuncks(cc,1):Chuncks(cc,2));
-    NanInd = find(isnan(Local_Voltage));
-    if isempty(NanInd)
-        SmallChuncks = Chuncks(cc,:);
+% Identify NaNs chunks within the continuous recording
+for cc=1:size(Chunks,1)
+
+    DataDeletionOnsetOffset_local = DataDeletionOnsetOffset_sample(DataDeletionOnsetOffset_sample(:,1) > Chunks(cc,1) & DataDeletionOnsetOffset_sample(:,2) < Chunks(cc,2),:);    
+    if isempty(DataDeletionOnsetOffset_local)
+        SmallChunks = Chunks(cc,:);
     else
-        F1stNanInd = [1 find(diff(NanInd)>1)+1];
-        LastNanInd = [find(diff(NanInd)>1) length(NanInd)];
-        SmallChuncks = horzcat([Chuncks(cc,1) ; Chuncks(cc,1) + NanInd(LastNanInd)'], [Chuncks(cc,1)-1 + NanInd(F1stNanInd)'-1 ; Chuncks(cc,2)]);
+        SmallChunks = [[Chunks(cc,1); DataDeletionOnsetOffset_local(:,2)+1], [DataDeletionOnsetOffset_local(:,1)-1; Chunks(cc,2)]];
     end
-    for ccin=1:size(SmallChuncks,1)
-        if sum(isnan(Voltage_Trace(SmallChuncks(ccin,1):SmallChuncks(ccin,2))))
-            error('Error of indexaion of chuncks of data without NaNs in detect_spikes.m, check the code!\n')
-        else
-            Voltage_Trace(SmallChuncks(ccin,1):SmallChuncks(ccin,2))=filtfilt(b,a,Voltage_Trace(SmallChuncks(ccin,1):SmallChuncks(ccin,2))); % band-pass filter the voltage traces
-        end
+    
+    for ccin=1:size(SmallChunks,1)
+        Voltage_Trace(SmallChunks(ccin,1):SmallChunks(ccin,2))=filtfilt(b,a,Voltage_Trace(SmallChunks(ccin,1):SmallChunks(ccin,2))); % band-pass filter the voltage traces
+        Voltage_Trace(DataDeletionOnsetOffset_local(ccin,1):DataDeletionOnsetOffset_local(ccin,2)) = NaN;
     end
 end
 
@@ -108,7 +104,17 @@ if FigCheck
         end
     end
 end
-[Peak_Values,Sample_indices_of_peaks]=findpeaks(Voltage_Trace,'MinPeakHeight',Spike_threshold); % find all the peaks in the filtered voltage trace that are also above threshold
+
+Voltage_Trace = int16(Voltage_dynamic_range*Voltage_Trace);
+
+local_max_idx = islocalmax(Voltage_Trace);
+thresh_height_idx = Voltage_Trace > Spike_threshold;
+
+peak_idx = local_max_idx & thresh_height_idx;
+Sample_indices_of_peaks = find(peak_idx);
+Peak_Values = double(Voltage_Trace(peak_idx)/Voltage_dynamic_range);
+
+% [Peak_Values,Sample_indices_of_peaks]=findpeaks(Voltage_Trace,'MinPeakHeight',Spike_threshold); % find all the peaks in the filtered voltage trace that are also above threshold
 if FigCheck
     figure()
     num_samples_to_plot=500; % number of samples to plot for each plotting window

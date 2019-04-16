@@ -51,8 +51,8 @@ for Tetrode_i=1:Num_tetrodes % for each of the electrode bundles, eg. tetrodes
             Waveforms_to_export_AD_counts = [Waveforms_to_export_AD_counts A];
         end
         NTT_header={'######## Neuralynx Data File Header';'-ADMaxValue 32767';['-ADBitVolts ' sprintf('%.24f',ADBitVolts) ' ' sprintf('%.24f',ADBitVolts) ' ' sprintf('%.24f',ADBitVolts) ' ' sprintf('%.24f',ADBitVolts)]}; % the string repetitions of "ADBitVolts" are for the different channels; the number is saved into the header with 24 digits after the decimal point, as the Neuralynx recording system does; note that this does no round to the 24th digit after the decimal point, which is OK when "ADBitVolts" is 500/(32767*10^6), but needs to be checked if a different voltage upper bound is used
-        
-        Mat2NlxSpike(NTT_Filename,AppendToFileFlag,ExportMode,ExportModeVector,FieldSelectionFlags,Spike_arrival_times',cluster_numbers,Waveforms_to_export_AD_counts,NTT_header)
+        Spike_arrival_times = reshape(Spike_arrival_times,1,[]);
+        Mat2NlxSpike(NTT_Filename,AppendToFileFlag,ExportMode,ExportModeVector,FieldSelectionFlags,Spike_arrival_times,cluster_numbers,Waveforms_to_export_AD_counts,NTT_header)
         % Note that if the time stamp and waveform inputs to Mat2NlxSpike
         % (6.0.0) are in certain integer formats, Mat2NlxSpike cannot correctly
         % save them, even though the .NTT file saves the waveforms and time
