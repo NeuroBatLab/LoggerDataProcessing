@@ -1,4 +1,4 @@
-function [Sample_indices_of_peaks, Peak_Values, Voltage_Trace, Voltage_dynamic_range]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample, FS, IndFirstNLastSamples, varargin)
+function [Sample_indices_of_peaks, Peak_Values, Voltage_Trace]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample, FS, IndFirstNLastSamples, varargin)
 %% This function return the potential spike position in a raw voltage trace as long as the filtered voltage trace
 % Voltage_Trace         Raw voltage trace given as a vector.
 % FS                            Sample frequency of the voltage trace
@@ -44,9 +44,9 @@ function [Sample_indices_of_peaks, Peak_Values, Voltage_Trace, Voltage_dynamic_r
 %                               require user input to continue
 
 %% Sorting input arguments
-pnames = {'SpikeTreshMethod', 'ManualSpikeThresh', 'AutoSpikeThreshFactor', 'BandPassFilter','MissingFiles','FigCheck','Voltage_dynamic_range'};
-dflts  = {'auto', 40,3, [600 6000],[],0,1e4};
-[SpikeThreshMeth, ManualSpikeThresh, AutoSpikeThreshFactor, BandPassFilter,  MissingFiles, FigCheck, Voltage_dynamic_range] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'SpikeTreshMethod', 'ManualSpikeThresh', 'AutoSpikeThreshFactor', 'BandPassFilter','MissingFiles','FigCheck'};
+dflts  = {'auto', 40,3, [600 6000],[],0};
+[SpikeThreshMeth, ManualSpikeThresh, AutoSpikeThreshFactor, BandPassFilter,  MissingFiles, FigCheck] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 %% Bandpass filter the input raw voltage
 [b,a]=butter(6,BandPassFilter/(FS/2),'bandpass'); % a 12th order Butterworth band-pass filter; the second input argument is normalized cut-off frequency (ie. normalized to the Nyquist frequency, which is half the sampling frequency, as required by MATLAB)

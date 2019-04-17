@@ -1040,9 +1040,9 @@ if Save_voltage
                 % If Neural data, extract position of potential spike on
                 % the voltage trace that was cleaned from the RF Artifacts
                 if sum(Missing_files)
-                    [Peaks_positions, Peaks_voltage_values, Filtered_voltage_trace, Voltage_dynamic_range]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample{active_channel_i}, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples, 'MissingFiles',find(Missing_files),'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
+                    [Peaks_positions, Peaks_voltage_values, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample{active_channel_i}, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples, 'MissingFiles',find(Missing_files),'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
                 else
-                    [Peaks_positions, Peaks_voltage_values, Filtered_voltage_trace, Voltage_dynamic_range]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample{active_channel_i}, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples,'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
+                    [Peaks_positions, Peaks_voltage_values, Filtered_voltage_trace]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample{active_channel_i}, nanmean(Estimated_channelFS_Transceiver), Ind_firstNlast_samples,'AutoSpikeThreshFactor',AutoSpikeThreshFactor);
                 end
             end
             
@@ -1054,7 +1054,7 @@ if Save_voltage
                 OUTDAT_spikes.DataDeletionOnsetOffset_usec = DataDeletionOnsetOffset_usec{active_channel_i};
                 OUTDAT_spikes.DataDeletionOnsetOffset_sample = DataDeletionOnsetOffset_sample{active_channel_i};
                 
-                save(Filename_temp, 'Filtered_voltage_trace','Voltage_dynamic_range','-v7.3');
+                save(Filename_temp, 'Filtered_voltage_trace','-v7.3');
                 clear Peaks_positions Peaks_voltage_values Filtered_voltage_trace
                 if CheckSpike
                     [Spike_arrival_times, Snippets] = extract_tetrode_snippets(OUTDAT_spikes.Peaks_positions, Output_folder, Active_channels(active_channel_i));
@@ -1125,7 +1125,7 @@ if Save_voltage
             All_Peaks_voltage = cell(length(Active_channels_local),1);
             for channel_i = 1:length(Active_channels_local)
                 FileName=fullfile(Output_folder, sprintf('%s_%s_CSC%d.mat', BatID,Date, Active_channels_local(channel_i)));
-                D=load(FileName, 'Peaks_positions','Peaks_voltage_value');
+                D=load(FileName, 'Peaks_positions','Peaks_voltage_values');
                 % identifying peaks that were detected within an artefact
                 % period and erase them
                 FalsePeaksInd = cell(NRFArtifact,1);
@@ -1134,8 +1134,11 @@ if Save_voltage
                 end
                 FalsePeaksInd = cell2mat(FalsePeaksInd');
                 
-                All_Peaks_positions{channel_i} = D.Peaks_positions(~FalsePeaksInd);
-                All_Peaks_voltage{channel_i}= D.Spike_voltage_values(~FalsePeaksInd);
+                D.Peaks_positions(FalsePeaksInd) = [];
+                D.Peaks_voltage_values(FalsePeaksInd) = [];
+                
+                All_Peaks_positions{channel_i} = D.Peaks_positions;
+                All_Peaks_voltage{channel_i}= D.Peaks_voltage_values;
                 clear D
             end
             % combine the peaks
