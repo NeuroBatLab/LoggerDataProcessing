@@ -51,6 +51,7 @@ Peak_voltage_out = Peak_voltage_out(1:Num_Peaks_Current);
 Peak_voltage_out = Peak_voltage_out(peak_sort_idx);
 neighboring_peak_idx = find(diff(Peak_positions_out)<MinPeakSpacing);
 round_k = 1;
+max_rounds = 10;
 while ~isempty(neighboring_peak_idx)
     
     peak_positions_to_keep = true(1,length(Peak_positions_out));
@@ -60,8 +61,15 @@ while ~isempty(neighboring_peak_idx)
         [~,min_peak_idx] = min(Peak_voltage_out(neighboring_idxs));
         peak_positions_to_keep(neighboring_idxs(min_peak_idx)) = false;
     end
-    if round_k > 5
-        break
+    if round_k > max_rounds
+        disp('max # of rounds reached, choose to continue or not')
+        keyboard
+        continueFlag = input('continue?');
+        if continueFlag
+            round_k = 1;
+        else
+            return
+        end
     end
     round_k = round_k + 1;
     
