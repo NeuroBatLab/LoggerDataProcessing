@@ -10,11 +10,8 @@ if nargin<2
     end
 end
 
-% Save the current path we are in
-CurrentPath = pwd;
-
 % Go to the MatlabImportExport folder
-eval(sprintf('cd %s',MatlabImpExpCodePath));
+addpath(MatlabImpExpCodePath);
 
 Snippets_file = dir(fullfile(OutputPath, '*Tetrode_spikes_snippets*'));
 SpikeTimes_file = dir(fullfile(OutputPath, '*Tetrode_spikes_time*'));
@@ -60,6 +57,7 @@ for Tetrode_i=1:Num_tetrodes % for each of the electrode bundles, eg. tetrodes
         % "spike_waveforms" here are integers in the "double" format.
     end
 end
-% Go back to the initial folder
-eval(sprintf('cd %s',CurrentPath));
+
+rmpath(MatlabImpExpCodePath);
+
 end

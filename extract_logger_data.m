@@ -1175,14 +1175,22 @@ if Save_voltage
         end
         [All_peaks_positions, I] = sort(All_peaks_positions); % Re-order the positions of detected peak in ascending order
         All_peaks_tetrode = All_peaks_tetrode(I); %Keep track of the tetrode number for each peak by appying the same ordering
+        
+        peaks_to_keep = cellfun(@(peaks) true(1,length(peaks)),Final_Peaks_positions,'un',0);
+        
         for pp=1:(sum(Num_peaks)-Num_EperBundle) % loop through each peak
             if (All_peaks_positions(pp+3)<=(All_peaks_positions(pp)+SampWinThresh)) && sum(sort(All_peaks_tetrode(pp+(0:3)))' == 1:Num_EperBundle)==Num_EperBundle %find if the next 3 peaks are within the window and belonging to all other tetrodes
                 Noisy_points = Noisy_points+1;
                 for tt=1:Num_tetrodes
-                    Final_Peaks_positions{All_peaks_tetrode(pp+tt-1)}(Final_Peaks_positions{All_peaks_tetrode(pp+tt-1)}==All_peaks_positions(pp+tt-1)) = [];
+                    peak_k = pp+tt-1;
+                    tt_k = All_peaks_tetrode(peak_k);
+                    peaks_to_keep{tt_k}(Final_Peaks_positions{tt_k}==All_peaks_positions(peak_k)) = false;
                 end
             end
         end
+        
+        Final_Peaks_positions = cellfun(@(peak_positions,idx) peak_positions(idx),Final_Peaks_positions,peaks_to_keep,'un',0);
+        
         if Noisy_points>0
             fprintf('%d peaks were detected as being noise accross tetrodes and eliminated\n',Noisy_points);
         end
