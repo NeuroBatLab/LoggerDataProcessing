@@ -971,7 +971,6 @@ if Save_voltage
                         else
                             Offset = PulsePoints(end) + 30;
                         end
-                        Voltage_Trace(FreeTextSamples(tt) + (Onset : Offset)) = nan(length(Onset : Offset),1);
                         %                     AD_count_channeli_all_files(FreeTextSamples(tt) +
                         %                     (Onset : Offset)) = nan(length(Onset : Offset),1);
                         %                     Replacing the samples by NaN in the raw data does not
@@ -1020,7 +1019,6 @@ if Save_voltage
                     if ~isempty(PulsePoints)
                         Onset = PulsePoints(1) -10-round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3);
                         Offset = PulsePoints(end) + 30 -round(nanmean(Estimated_channelFS_Transceiver)*500*10^-3);
-                        Voltage_Trace(SystCheckSamples(tt) + (Onset : Offset)) = nan(length(Onset : Offset),1);
                         %                         AD_count_channeli_all_files(SystCheckSamples(tt)
                         %                         + (Onset : Offset)) = nan(length(Onset :
                         %                         Offset),1); Replacing the samples by NaN in the raw data does not
