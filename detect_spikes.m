@@ -1,12 +1,19 @@
-function [Sample_indices_of_peaks, Peak_Values, Voltage_Trace]=detect_spikes(Voltage_Trace, DataDeletionOnsetOffset_sample, FS, IndFirstNLastSamples, varargin)
+function [Sample_indices_of_peaks, Peak_Values, Voltage_Trace]=detect_spikes(Voltage_Trace, DataDeletion_sample, FS, IndFirstNLastSamples, varargin)
 %% This function return the potential spike position in a raw voltage trace as long as the filtered voltage trace
-% Voltage_Trace         Raw voltage trace given as a vector.
+% Voltage_Trace                 Raw voltage trace given as a vector of
+%                               single precision.
+%
+% DataDeletion_sample           Sample indices where artifacts were
+%                               detected to be set to NaNs 
+%
 % FS                            Sample frequency of the voltage trace
+%
 % IndFirstNLastSamples
 %                               First column corresponds to deuteron original .dat onset sample, second
 %                               column to end sample of that file. Raw
 %                               voltage should be set to zero for samples in the row indicated by MisingFiles, since
 %                               it is missing data.
+%
 % SpikeTreshMethod: 'manual' manually set a threshold for detecting spikes
 %                               in the raw voltage trace of each channel;
 %                               'auto' automatically set a threshold as a multiple of
@@ -49,29 +56,31 @@ dflts  = {'auto', 40,3, [600 6000],[],0};
 [SpikeThreshMeth, ManualSpikeThresh, AutoSpikeThreshFactor, BandPassFilter,  MissingFiles, FigCheck] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 %% Bandpass filter the input raw voltage
-[b,a]=butter(6,BandPassFilter/(FS/2),'bandpass'); % a 12th order Butterworth band-pass filter; the second input argument is normalized cut-off frequency (ie. normalized to the Nyquist frequency, which is half the sampling frequency, as required by MATLAB)
-Voltage_Trace = double(Voltage_Trace);
+N = round(FS*1e-3);
+firf = designfilt('bandpassfir', 'FilterOrder', N, 'StopbandFrequency1', 0.8*BandPassFilter(1),...
+    'PassbandFrequency1', BandPassFilter(1), 'PassbandFrequency2', BandPassFilter(2),...
+    'StopbandFrequency2', 1.2*BandPassFilter(2), 'SampleRate', FS, 'DesignMethod', 'ls'); % design a filter with a passband range of BandPassFilter and a stopband range of +/- 20%
+filterDelay = mean(grpdelay(firf));
+assert(filterDelay/FS < 1e-3) % make sure the filter induced delay is less than 1ms
+
 % Bandpass filtering is applied to continous chunks of recordings.
 Chunks = [1 length(Voltage_Trace)];
 if ~isempty(MissingFiles)
     Ind_firstNlast_samples_MissingFiles = IndFirstNLastSamples(MissingFiles,:);
     Chunks = [1;Ind_firstNlast_samples_MissingFiles(1:(end-1),2)+1 Ind_firstNlast_samples_MissingFiles(:,1)];
 end
-% Identify NaNs chunks within the continuous recording
-for cc=1:size(Chunks,1)
 
-    DataDeletionOnsetOffset_local = DataDeletionOnsetOffset_sample(DataDeletionOnsetOffset_sample(:,1) > Chunks(cc,1) & DataDeletionOnsetOffset_sample(:,2) < Chunks(cc,2),:);    
-    if isempty(DataDeletionOnsetOffset_local)
-        SmallChunks = Chunks(cc,:);
-    else
-        SmallChunks = [[Chunks(cc,1); DataDeletionOnsetOffset_local(:,2)+1], [DataDeletionOnsetOffset_local(:,1)-1; Chunks(cc,2)]];
-    end
-    
-    for ccin=1:size(SmallChunks,1)
-        Voltage_Trace(SmallChunks(ccin,1):SmallChunks(ccin,2))=filtfilt(b,a,Voltage_Trace(SmallChunks(ccin,1):SmallChunks(ccin,2))); % band-pass filter the voltage traces
-        if ccin > 1
-            Voltage_Trace(DataDeletionOnsetOffset_local(ccin-1,1):DataDeletionOnsetOffset_local(ccin-1,2)) = NaN;
-        end
+for cc=1:size(Chunks,1)
+    Voltage_Trace(Chunks(cc,1):Chunks(cc,2)) = filter(firf,Voltage_Trace(Chunks(cc,1):Chunks(cc,2)));
+end
+
+% Set artifact samples to NaN (accounting for the filter's order)
+
+for chunk_k = 1:size(DataDeletion_sample,1)
+    data_deletion_samples = DataDeletion_sample(chunk_k,:) + [-N N];
+    if ~any(isnan(data_deletion_samples))
+        data_deletion_idx = data_deletion_samples(1):data_deletion_samples(2);
+        Voltage_Trace(data_deletion_idx) = NaN;
     end
 end
 
@@ -119,7 +128,7 @@ if exist('islocalmax','file')
     end
     
     Sample_indices_of_peaks = find(peak_idx);
-    Peak_Values = Voltage_Trace(peak_idx);
+    Peak_Values = Voltage_Trace(Sample_indices_of_peaks);
     
 elseif exist('findpeaks','file')
     Sample_indices_of_peaks = cell(1,length(chunkIdx)-1);
@@ -134,8 +143,6 @@ elseif exist('findpeaks','file')
 else
     error('couldn''t find function to find peaks for spike detection')
 end
-
-Voltage_Trace = single(Voltage_Trace);
 
 if FigCheck
     figure()
