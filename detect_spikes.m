@@ -56,7 +56,7 @@ dflts  = {'auto', 40,3, [600 6000],[],0};
 [SpikeThreshMeth, ManualSpikeThresh, AutoSpikeThreshFactor, BandPassFilter,  MissingFiles, FigCheck] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 %% Bandpass filter the input raw voltage
-[b,a]=butter(6,BandPassFilter/(Fs/2),'bandpass');
+[b,a]=butter(6,BandPassFilter/(FS/2),'bandpass');
 
 % Bandpass filtering is applied to continous chunks of recordings.
 Chunks = [1 length(Voltage_Trace)];
