@@ -56,12 +56,7 @@ dflts  = {'auto', 40,3, [600 6000],[],0};
 [SpikeThreshMeth, ManualSpikeThresh, AutoSpikeThreshFactor, BandPassFilter,  MissingFiles, FigCheck] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 %% Bandpass filter the input raw voltage
-N = round(FS*1e-3);
-firf = designfilt('bandpassfir', 'FilterOrder', N, 'StopbandFrequency1', 0.8*BandPassFilter(1),...
-    'PassbandFrequency1', BandPassFilter(1), 'PassbandFrequency2', BandPassFilter(2),...
-    'StopbandFrequency2', 1.2*BandPassFilter(2), 'SampleRate', FS, 'DesignMethod', 'ls'); % design a filter with a passband range of BandPassFilter and a stopband range of +/- 20%
-filterDelay = mean(grpdelay(firf));
-assert(filterDelay/FS < 1e-3) % make sure the filter induced delay is less than 1ms
+[b,a]=butter(6,BandPassFilter/(Fs/2),'bandpass');
 
 % Bandpass filtering is applied to continous chunks of recordings.
 Chunks = [1 length(Voltage_Trace)];
@@ -71,13 +66,13 @@ if ~isempty(MissingFiles)
 end
 
 for cc=1:size(Chunks,1)
-    Voltage_Trace(Chunks(cc,1):Chunks(cc,2)) = filter(firf,Voltage_Trace(Chunks(cc,1):Chunks(cc,2)));
+    Voltage_Trace(Chunks(cc,1):Chunks(cc,2)) = filtfilt(b,a,double(Voltage_Trace(Chunks(cc,1):Chunks(cc,2))));
 end
-
-% Set artifact samples to NaN (accounting for the filter's order)
+Voltage_Trace = single(Voltage_Trace);
+% Set artifact samples to NaN
 
 for chunk_k = 1:size(DataDeletion_sample,1)
-    data_deletion_samples = DataDeletion_sample(chunk_k,:) + [-N N];
+    data_deletion_samples = DataDeletion_sample(chunk_k,:);
     if ~any(isnan(data_deletion_samples))
         data_deletion_idx = data_deletion_samples(1):data_deletion_samples(2);
         Voltage_Trace(data_deletion_idx) = NaN;
