@@ -635,6 +635,29 @@ if Save_voltage
     File_start_timestamps=Event_timestamps_usec(Ind_file_start);
     File_start_timestamps_LogRef = (Event_timestamps_usec_raw(Ind_file_start)); % Time in microseconds
     File_start_details=Event_types_and_details(Ind_file_start); % these are eg. "File started. File index: 000"
+    File_start_detail_nums = cellfun(@(str) regexp(str,'\d{3,4}','match'),File_start_details,'un',0);
+    File_start_detail_nums = cellfun(@(x) str2double(x{1}),File_start_detail_nums);
+    
+    while length(unique(File_start_detail_nums)) ~= length(File_start_detail_nums)
+        repeat_file_start_num = find(histcounts(File_start_detail_nums,1:length(File_start_detail_nums)+1)>1);
+        repeat_file_start_idx = find(File_start_detail_nums == repeat_file_start_num);
+        fprintf('WARNING: file #%d is reported as starting more than once at indices: %s\n',repeat_file_start_num,sprintf('%d ', repeat_file_start_idx))
+        idx_to_delete = [];
+        while isempty(idx_to_delete)
+            fprintf('Choose which index to delete\n');
+            keyboard
+            [idx_to_delete_idx,status] = listdlg('ListString',num2str(repeat_file_start_idx),'SelectionMode','single');
+            if status
+                idx_to_delete = repeat_file_start_idx(idx_to_delete_idx);
+            end
+        end
+        Ind_file_start(idx_to_delete) = [];
+        File_start_timestamps(idx_to_delete) = [];
+        File_start_timestamps_LogRef(idx_to_delete) = [];
+        File_start_details(idx_to_delete) = [];
+        File_start_detail_nums(idx_to_delete) = [];
+    end
+    
     Nfiles=length(File_start_timestamps);
     if length(AllDatFiles) ~=Nfiles
         fprintf('WARNING: discrepancy between the number of expected files according to the log (%d) and the number of actual .dat files in folder (%d)\n', Nfiles, length(AllDatFiles));
