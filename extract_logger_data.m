@@ -386,6 +386,9 @@ end
 % of the logger
 disp('->Retrieving time stamps of clock drift reports')
 Str = 'CD=';
+
+n_std_outsider_diff = 2; % multiple of standard deviation of difference of clock differences to detect and eliminate spurious CD reports
+
 Ind_CD = find(contains(Event_types_and_details,Str));
 CD_sec=nan(length(Ind_CD),1);
 CD_logger_stamps=nan(length(Ind_CD),1);
@@ -398,11 +401,11 @@ for CD_i=1:length(Ind_CD)
 end
 
 % Get rid of outsider: obvious error of Deuteron in the Clock drift report
-Outsider_diff = find(abs(diff(CD_sec))> (nanmean(abs(diff(CD_sec))) + 4*nanstd(abs(diff(CD_sec))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
+Outsider_diff = find(abs(diff(CD_sec))> (nanmean(abs(diff(CD_sec))) + n_std_outsider_diff*nanstd(abs(diff(CD_sec))))); % identify indices of the derivative of CD_sec that are n_std_outsider_diff standard deviation away from the mean
 
 % consecutive indices of the derivative that are away from the arevage
 % distribution correspond to outsider points that we can eliminate.
-Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
+Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are n_std_outsider_diff standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
 CD_sec_Outsider = CD_sec(Outsider_local); % value of clock drift reports that are discarded
 CD_sec(Outsider_local)= NaN; % replace that clock drift report by NaN in the whole data section
 Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
@@ -434,8 +437,8 @@ for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutiv
     CD_sec_local = CD_sec(Ind_CD_local);
     
     % Get rid of outsider again: obvious error of Deuteron in the Clock drift report
-    Outsider_diff = find(abs(diff(CD_sec_local))> (nanmean(abs(diff(CD_sec_local)))+ 4*nanstd(abs(diff(CD_sec_local))))); % identify indices of the derivative of CD_sec that are 4 standard deviation away from the mean
-    Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
+    Outsider_diff = find(abs(diff(CD_sec_local))> (nanmean(abs(diff(CD_sec_local)))+ n_std_outsider_diff*nanstd(abs(diff(CD_sec_local))))); % identify indices of the derivative of CD_sec that are n_std_outsider_diff standard deviation away from the mean
+    Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are n_std_outsider_diff standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
     CD_sec_Outsider = [CD_sec_Outsider; CD_sec_local(Outsider_local)]; %#ok<AGROW>
     CD_sec_local(Outsider_local) = []; % erase that clock drift report from the local section of data
     CD_sec(Ind_CD_local(Outsider_local))= NaN; % replace that clock drift report by NaN in the whole data section
