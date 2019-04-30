@@ -589,7 +589,7 @@ if exist('BackInd', 'var') % plot the position of the clock jump
     Xval = (Event_timestamps_usec(BackInd)-LoggerTime_ref)/(1e6*60);
     Yval = get(gca, 'YLim');
     line([Xval Xval], Yval, 'Color','g','LineStyle','-')
-    text(Xval, diff(Yval)/2, 'Clock Jump', 'Color','g')
+    text(Xval,repmat(mean(Yval),length(Xval),1), 'Clock Jump', 'Color','g')
 end
 
 
