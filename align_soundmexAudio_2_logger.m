@@ -163,7 +163,11 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
         File_number{w} = ones(length(Digits),1)*Num_Samp_audiofile(w,1);
         
         % save the 1st sample of each pulse train
-        Pulse_samp_audio{w} = TTLHigh(PulseTrainInd);
+        if isempty(TTLHigh) %there is no pulse in that recording
+            Pulse_samp_audio{w} = [];
+        else
+            Pulse_samp_audio{w} = TTLHigh(PulseTrainInd);
+        end
     end
 end
 Pulse_idx_audio = cell2mat(Pulse_idx_audio);
