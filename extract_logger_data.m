@@ -394,202 +394,229 @@ CD_sec=nan(length(Ind_CD),1);
 CD_logger_stamps=nan(length(Ind_CD),1);
 for CD_i=1:length(Ind_CD)
     IndLT2 = strfind(Event_types_and_details{Ind_CD(CD_i)},Str);
-    IndLT3 = strfind(Event_types_and_details{Ind_CD(CD_i)},' ');% find the empty space after the clock difference value from eg. "...CD=-0.001000 RR=0..."
-    IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
+    if any(contains(Event_types_and_details, 'LoggerController'))
+        IndLT3 = length(Event_types_and_details{Ind_CD(CD_i)});
+    elseif any(contains(Event_types_and_details, 'LoggerDemo'))
+        IndLT3 = strfind(Event_types_and_details{Ind_CD(CD_i)},' ');% find the empty space after the clock difference value from eg. "...CD=-0.001000 RR=0..."
+        IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
+    end
     CD_sec(CD_i)=str2double(Event_types_and_details{Ind_CD(CD_i)}((IndLT2+length(Str)) : (IndLT3-1))); % clock differences are in s
     CD_logger_stamps(CD_i)=Event_timestamps_usec_raw(Ind_CD(CD_i)); % the time of the logger clock when the clock difference was reported
 end
 
-% Get rid of outsider: obvious error of Deuteron in the Clock drift report
-Outsider_diff = find(abs(diff(CD_sec))> (nanmean(abs(diff(CD_sec))) + n_std_outsider_diff*nanstd(abs(diff(CD_sec))))); % identify indices of the derivative of CD_sec that are n_std_outsider_diff standard deviation away from the mean
+% Check what software was used to record and if the clock drift correction
+% was enough to avoid more than 1ms drift between transceiver and logger
+if any(contains(Event_types_and_details, 'LoggerController')) && ~any(CD_sec>=1.2*10^-3)
+    fprintf(1,'No clock drift correction needed, all values are below 1.2ms\n')
+    Event_timestamps_usec = Event_timestamps_usec_raw;
 
-% consecutive indices of the derivative that are away from the arevage
-% distribution correspond to outsider points that we can eliminate.
-Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are n_std_outsider_diff standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
-CD_sec_Outsider = CD_sec(Outsider_local); % value of clock drift reports that are discarded
-CD_sec(Outsider_local)= NaN; % replace that clock drift report by NaN in the whole data section
-Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
+    % Get a reference for the time
+    LoggerTime_ref = Event_timestamps_usec(find(contains(Event_types_and_details,'Started recording'),1));
+    % Event_timestamps_usec = Event_timestamps_usec - LoggerTime_ref;
 
-
-% Work between clock synchronization events or onset/offset events. It is assumed that the drift
-% is mostly linear between these synchronization events.
-Ind_Start = find(contains(Event_types_and_details,'Started recording'));
-Ind_Stop = find(contains(Event_types_and_details,'Stopped recording'));
-Ind_Sync = sort([Ind_Start; Ind_Stop; find(contains(Event_types_and_details,'Clocks synchronized')); length(Event_types_and_details)]); % synchronization evenst,the first recording and last event
-Ind_Sync = Ind_Sync(Ind_Sync>= Ind_Start(1));
-Ind_Logger_times=find(contains(Event_timestamps_source,'Logger')); % events originally logged with logger time stamps
-Estimated_CD=nan(length(Ind_Logger_times),1); % estimated clock difference for the logger time stamps identified by Ind_Logger_times
-
-for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutive "Clocks synchronized" events after we started recording
-    % Identify the events that were logged in logger time for that data
-    % section
-    Ind_Logger_times_local=find(Ind_Logger_times>=Ind_Sync(unsync_i) & Ind_Logger_times<Ind_Sync(unsync_i+1)); % all the events that were originally logged with transceiver time stamps in the current interval
-    if isempty(Ind_Logger_times_local) % if there is no events in the current interval whose clock difference need to be estimated
-        continue
-    end
-    % Identify the indices of the clock reports for that section of data
-    if contains(Event_types_and_details(Ind_Sync(unsync_i)),'Clocks synchronized')
-        Ind_CD_local=find(Ind_CD>Ind_Sync(unsync_i) & Ind_CD<Ind_Sync(unsync_i+1) & ~isnan(CD_sec)); % all the events in the current interval when clock difference was reported and not NaN (ignore when Deuteron software gives weird blank output (e.g. CD=--))
-    elseif contains(Event_types_and_details(Ind_Sync(unsync_i)),'Started recording')
-        Ind_CD_local=find(Ind_CD>Ind_Sync(unsync_i) & Ind_CD<Ind_Sync(unsync_i+1) & ~isnan(CD_sec));
-        Ind_CD_local = [find(Ind_CD<Ind_Sync(unsync_i) & Ind_CD>1,1,'last'); Ind_CD_local]; %#ok<AGROW> % add just the previous clock drift measurement before the start of the recording
-    end
-    CD_sec_local = CD_sec(Ind_CD_local);
+    % plot the result of clock difference correction to check for mistakes
+    Figure1 = figure(1);
+    cla(Figure1)
+    hold on
+    legend('Location','best', 'AutoUpdate', 'on')
+    plot((CD_logger_stamps-LoggerTime_ref)/(1e6*60), CD_sec*1e3,'r-', 'DisplayName','Recorded clock differences') % transceiver stamps in min at clock difference reports vs. the reported clock differences that were used for estimation
+    legend('Location','best', 'AutoUpdate', 'off')
+    title('Values of Clock drift reportsof less than 1ms, NO CORRECTION');
+    ylabel('Logger time - transceiver time (ms)')
+    xlabel('Transceiver time (minutes) from recording start')
     
-    % Get rid of outsider again: obvious error of Deuteron in the Clock drift report
-    Outsider_diff = find(abs(diff(CD_sec_local))> (nanmean(abs(diff(CD_sec_local)))+ n_std_outsider_diff*nanstd(abs(diff(CD_sec_local))))); % identify indices of the derivative of CD_sec that are n_std_outsider_diff standard deviation away from the mean
+else % performing a clock drift correction
+
+    % Get rid of outsider: obvious error of Deuteron in the Clock drift report
+    Outsider_diff = find(abs(diff(CD_sec))> (nanmean(abs(diff(CD_sec))) + n_std_outsider_diff*nanstd(abs(diff(CD_sec))))); % identify indices of the derivative of CD_sec that are n_std_outsider_diff standard deviation away from the mean
+
+    % consecutive indices of the derivative that are away from the arevage
+    % distribution correspond to outsider points that we can eliminate.
     Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are n_std_outsider_diff standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
-    CD_sec_Outsider = [CD_sec_Outsider; CD_sec_local(Outsider_local)]; %#ok<AGROW>
-    CD_sec_local(Outsider_local) = []; % erase that clock drift report from the local section of data
-    CD_sec(Ind_CD_local(Outsider_local))= NaN; % replace that clock drift report by NaN in the whole data section
-    Outsider = [Outsider; Ind_CD_local(Outsider_local)]; %#ok<AGROW> Keep track of the index ofthe removed clock drift report
-    Ind_CD_local(Outsider_local) = []; %remove that indices of clock drift report from the set of usable ones
-    
-    % Identify isolate outsider that corresponds to sudden clock
-    % reinitialization and error if they are found. the code currently does not
-    % handle such issues
-    Sudden_shift = Outsider_diff(find(diff(Outsider_diff)>1)+1);
-    if isempty(Sudden_shift) && length(Outsider_diff)==1 % There is only a sudden clock reinitialization in that recording
-        if Outsider_diff==1 % Only the first CD check is incorrect, get rid of it
-            Ind_CD_local(Outsider_diff)=[];
-            CD_sec_local(Outsider_diff)=[];
-        else
-            Sudden_shift = Outsider_diff;
+    CD_sec_Outsider = CD_sec(Outsider_local); % value of clock drift reports that are discarded
+    CD_sec(Outsider_local)= NaN; % replace that clock drift report by NaN in the whole data section
+    Outsider = Outsider_local; % % Indices of clock drift reports that are discarted
+
+
+    % Work between clock synchronization events or onset/offset events. It is assumed that the drift
+    % is mostly linear between these synchronization events.
+    Ind_Start = find(contains(Event_types_and_details,'Started recording'));
+    Ind_Stop = find(contains(Event_types_and_details,'Stopped recording'));
+    Ind_Sync = sort([Ind_Start; Ind_Stop; find(contains(Event_types_and_details,'Clocks synchronized')); length(Event_types_and_details)]); % synchronization evenst,the first recording and last event
+    Ind_Sync = Ind_Sync(Ind_Sync>= Ind_Start(1));
+    Ind_Logger_times=find(contains(Event_timestamps_source,'Logger')); % events originally logged with logger time stamps
+    Estimated_CD=nan(length(Ind_Logger_times),1); % estimated clock difference for the logger time stamps identified by Ind_Logger_times
+
+    for unsync_i=1:length(Ind_Sync)-1 % for each of the intervals between consecutive "Clocks synchronized" events after we started recording
+        % Identify the events that were logged in logger time for that data
+        % section
+        Ind_Logger_times_local=find(Ind_Logger_times>=Ind_Sync(unsync_i) & Ind_Logger_times<Ind_Sync(unsync_i+1)); % all the events that were originally logged with transceiver time stamps in the current interval
+        if isempty(Ind_Logger_times_local) % if there is no events in the current interval whose clock difference need to be estimated
+            continue
         end
-    end
-    if (~isempty(Sudden_shift)) && (abs(CD_sec(Sudden_shift)-CD_sec(Sudden_shift+1))>0.1) % Jump of more than a 100ms
-        error('A sudden clock shift was detected. The clock drift jump from %fs to %fs between the %dth and %dth system checks.\n The extraction code does not currently handle such issues\n. Most likely the transceiver or the logger reset its clock without a warning\n', CD_sec(Sudden_shift), CD_sec(Sudden_shift +1), Sudden_shift, Sudden_shift+1)
-    end
-    
-    % Convert the events that were logged in logger time
-    % to transceiver time for each chunck of data
-    if length(Ind_CD_local)==1 % if there is only one reported clock difference in the current interval, then use that for all unreported clock differences
-        warning('Only one clock drift value for the %dth section of data containing %d time points that need correction\nbetween consecutive clock synchronization events or start stop events\nClock drift might not be well estimated\n',unsync_i, length(Ind_Logger_times_local));
-        Estimated_CD(Ind_Logger_times_local)=CD_sec_local*1e6;
-    else
-        % Estimate the clock differences in microseconds at all the time points in the
-        % current interval that were originally logged with the
-        % logger clock
-        if strcmp(CD_Estimation, 'fit')
-            slope_and_intercept=polyfit((CD_logger_stamps(Ind_CD_local)-mean(CD_logger_stamps(Ind_CD_local)))/std(CD_logger_stamps(Ind_CD_local)),CD_sec_local, 1); % reduce magnitude of input for numerical stability
-            Estimated_CD(Ind_Logger_times_local)=1e6 * polyval(slope_and_intercept,(Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local))-mean(CD_logger_stamps(Ind_CD_local)))/std(CD_logger_stamps(Ind_CD_local)));
-            % Estimate by fitting a line over the clock differences of
-            % all the PC-generated comments in the current interval
-        elseif strcmp(CD_Estimation, 'interpolation')
-            Estimated_CD(Ind_Logger_times_local)=interp1(CD_logger_stamps(Ind_CD_local), CD_sec_local*1e6, Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local)),'linear','extrap');
-            % Estimate by linearly interpolating between the clock
-            % differences of each pair of consecutive PC-generated
-            % comments; also extrapolates for time points before the
-            % first PC-generated comment or after the last
+        % Identify the indices of the clock reports for that section of data
+        if contains(Event_types_and_details(Ind_Sync(unsync_i)),'Clocks synchronized')
+            Ind_CD_local=find(Ind_CD>Ind_Sync(unsync_i) & Ind_CD<Ind_Sync(unsync_i+1) & ~isnan(CD_sec)); % all the events in the current interval when clock difference was reported and not NaN (ignore when Deuteron software gives weird blank output (e.g. CD=--))
+        elseif contains(Event_types_and_details(Ind_Sync(unsync_i)),'Started recording')
+            Ind_CD_local=find(Ind_CD>Ind_Sync(unsync_i) & Ind_CD<Ind_Sync(unsync_i+1) & ~isnan(CD_sec));
+            Ind_CD_local = [find(Ind_CD<Ind_Sync(unsync_i) & Ind_CD>1,1,'last'); Ind_CD_local]; %#ok<AGROW> % add just the previous clock drift measurement before the start of the recording
         end
-    end
-    if any(isnan(Estimated_CD(Ind_Logger_times_local)))
-        disp('Unable to estimate clock differences at the following events...')
-        Event_types_and_details(Ind_Logger_times_local)
-    end
-end
+        CD_sec_local = CD_sec(Ind_CD_local);
 
-if length(Ind_Sync)==2
-    disp('There was no clock synchronization event during the experiment')
-end
+        % Get rid of outsider again: obvious error of Deuteron in the Clock drift report
+        Outsider_diff = find(abs(diff(CD_sec_local))> (nanmean(abs(diff(CD_sec_local)))+ n_std_outsider_diff*nanstd(abs(diff(CD_sec_local))))); % identify indices of the derivative of CD_sec that are n_std_outsider_diff standard deviation away from the mean
+        Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are n_std_outsider_diff standard deviation away from the mean derivative and deduct the indices of the actual outsider points in CD_sec
+        CD_sec_Outsider = [CD_sec_Outsider; CD_sec_local(Outsider_local)]; %#ok<AGROW>
+        CD_sec_local(Outsider_local) = []; % erase that clock drift report from the local section of data
+        CD_sec(Ind_CD_local(Outsider_local))= NaN; % replace that clock drift report by NaN in the whole data section
+        Outsider = [Outsider; Ind_CD_local(Outsider_local)]; %#ok<AGROW> Keep track of the index ofthe removed clock drift report
+        Ind_CD_local(Outsider_local) = []; %remove that indices of clock drift report from the set of usable ones
 
-Event_timestamps_usec = Event_timestamps_usec_raw;
-Event_timestamps_usec(Ind_Logger_times)=Event_timestamps_usec(Ind_Logger_times) - Estimated_CD; % convert the time stamps that were originally logger times to transceiver times
-%Event_timestamps_usec=round(Event_timestamps_usec); % round all time stamps to integer microseconds
-
-% Check that transceiver time is continuously increasing. If not and the
-% time difference is higher than 1 sec (10^6usec) most
-% likely a reset of the clock happened just before a synchronization event
-% or onset/offset event, or the transceiver was exchanged. We want to correct for that.
-if any(diff(Event_timestamps_usec)<-10^6) % The transceiver clock went back in time at some point
-    DiffTime = diff(Event_timestamps_usec);
-    BackInd = find(DiffTime<-10^6);
-    fprintf(1,'The transceiver clock jumped back in time %d times\n', length(BackInd));
-    for IB = 1:length(BackInd)
-        % Check if that jump corresponds to a Startup line. If that the
-        % case, just ignore
-        if contains(Event_types_and_details{BackInd(IB)}, 'Startup') || contains(Event_types_and_details{BackInd(IB)+1}, 'Startup')
-            % ignore, these lines are not used
-        else % propose correction
-            fprintf(1,'\nJump %d of %.2f ms between event # %s\n%s\nand event # %s\n%s\n',IB, DiffTime(BackInd(IB))/10^3,Event_number{BackInd(IB)}, Event_types_and_details{BackInd(IB)},Event_number{BackInd(IB)+1}, Event_types_and_details{BackInd(IB)+1});
-            GoSignal = input('Correcting for the clock jump? No:0; Yes:1; Debug mode:2');
-            if GoSignal==1
-                % Calculate the time difference of 2 transceiver reports that
-                % are each apart from the jump
-                Ind_Transc_times=find(contains(Event_timestamps_source,'Transceiver')); % events originally logged with transceiver time stamps
-                ITt_before = Ind_Transc_times(find(Ind_Transc_times<=BackInd(IB),1,'Last'));
-                ITt_after = Ind_Transc_times(find(Ind_Transc_times>BackInd(IB),1,'First'));
-                Tt_before = Event_timestamps_usec(ITt_before);
-                Tt_after = Event_timestamps_usec(ITt_after);
-                
-                % Check if that jump has already been identified in another
-                % logger and indicated as an input to the function
-                if ~isfield(TransceiverReset,Tt_before) % No information of this jump from a previous logger extraction, just proceed and fix it
-                    TransceiverReset.Tt_before = Tt_before;
-                    TransceiverReset.Tt_after = Tt_after;
-                    % Estimate the minimum time that elapsed during the jump using 2 logger
-                    % reports that are at the begining and end of the jump
-                    % (rounded to the nearest lower minute)
-                    ILt_before = Ind_Logger_times(find(Ind_Logger_times>=BackInd(IB),1,'First'));
-                    ILt_after = Ind_Logger_times(find(Ind_Logger_times<=ITt_after,1,'Last'));
-                    TransceiverReset.ElapsedTime_usec = floor((Event_timestamps_usec_raw(ILt_after) - Event_timestamps_usec_raw(ILt_before))/(60*10^6)) .* (60*10^6);
-                elseif TransceiverReset.Tt_before == Tt_before
-                    % This jump was already fixed from a previous logger extraction, use the same correction
-                else % There was a correction from a previous logger extraction but it might apply to a different jump in time? User input necessary to handle that!!
-                    warning('This jump clock need some manual input, unsure about which correction to use!!\n')
-                    keyboard
-                end
-                
-                % Correct all transceiver times before the jump by the estimated
-                % elapsed time
-                TransceiverReset.Correction_us = TransceiverReset.Tt_before - TransceiverReset.Tt_after + TransceiverReset.ElapsedTime_usec;
-                Event_timestamps_usec(1:BackInd(IB)) = Event_timestamps_usec(1:BackInd(IB)) - TransceiverReset.Correction_us;
-                % Correct the values of the clock drift for this reset of the transceiver clock
-                CD_sec(Ind_CD<=BackInd(IB)) = CD_sec(Ind_CD<=BackInd(IB)) + TransceiverReset.Correction_us/10^6; % we are in sec
-                Estimated_CD(Ind_Logger_times<=BackInd(IB)) = Estimated_CD(Ind_Logger_times<=BackInd(IB)) + TransceiverReset.Correction_us; % we are in us
-                
-            elseif GoSignal==2
-                keyboard
+        % Identify isolate outsider that corresponds to sudden clock
+        % reinitialization and error if they are found. the code currently does not
+        % handle such issues
+        Sudden_shift = Outsider_diff(find(diff(Outsider_diff)>1)+1);
+        if isempty(Sudden_shift) && length(Outsider_diff)==1 % There is only a sudden clock reinitialization in that recording
+            if Outsider_diff==1 % Only the first CD check is incorrect, get rid of it
+                Ind_CD_local(Outsider_diff)=[];
+                CD_sec_local(Outsider_diff)=[];
             else
-                % doing no correction
+                Sudden_shift = Outsider_diff;
             end
         end
+        if (~isempty(Sudden_shift)) && any(abs(CD_sec(Sudden_shift)-CD_sec(Sudden_shift+1))>0.1) % Jump of more than a 100ms
+            error('A sudden clock shift was detected. The clock drift jump from %fs to %fs between the %dth and %dth system checks.\n The extraction code does not currently handle such issues\n. Most likely the transceiver or the logger reset its clock without a warning\n', CD_sec(Sudden_shift), CD_sec(Sudden_shift +1), Sudden_shift, Sudden_shift+1)
+        end
+
+        % Convert the events that were logged in logger time
+        % to transceiver time for each chunck of data
+        if length(Ind_CD_local)==1 % if there is only one reported clock difference in the current interval, then use that for all unreported clock differences
+            warning('Only one clock drift value for the %dth section of data containing %d time points that need correction\nbetween consecutive clock synchronization events or start stop events\nClock drift might not be well estimated\n',unsync_i, length(Ind_Logger_times_local));
+            Estimated_CD(Ind_Logger_times_local)=CD_sec_local*1e6;
+        else
+            % Estimate the clock differences in microseconds at all the time points in the
+            % current interval that were originally logged with the
+            % logger clock
+            if strcmp(CD_Estimation, 'fit')
+                slope_and_intercept=polyfit((CD_logger_stamps(Ind_CD_local)-mean(CD_logger_stamps(Ind_CD_local)))/std(CD_logger_stamps(Ind_CD_local)),CD_sec_local, 1); % reduce magnitude of input for numerical stability
+                Estimated_CD(Ind_Logger_times_local)=1e6 * polyval(slope_and_intercept,(Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local))-mean(CD_logger_stamps(Ind_CD_local)))/std(CD_logger_stamps(Ind_CD_local)));
+                % Estimate by fitting a line over the clock differences of
+                % all the PC-generated comments in the current interval
+            elseif strcmp(CD_Estimation, 'interpolation')
+                Estimated_CD(Ind_Logger_times_local)=interp1(CD_logger_stamps(Ind_CD_local), CD_sec_local*1e6, Event_timestamps_usec_raw(Ind_Logger_times(Ind_Logger_times_local)),'linear','extrap');
+                % Estimate by linearly interpolating between the clock
+                % differences of each pair of consecutive PC-generated
+                % comments; also extrapolates for time points before the
+                % first PC-generated comment or after the last
+            end
+        end
+        if any(isnan(Estimated_CD(Ind_Logger_times_local)))
+            disp('Unable to estimate clock differences at the following events...')
+            Event_types_and_details(Ind_Logger_times_local)
+        end
     end
-    
-end
 
-% Convert time logger stamps of clock difference reports to transceiver time stamps
-CD_transceiver_stamps=CD_logger_stamps-CD_sec*1e6;
+    if length(Ind_Sync)==2
+        disp('There was no clock synchronization event during the experiment')
+    end
 
-% Get a reference for the time
-LoggerTime_ref = Event_timestamps_usec(find(contains(Event_types_and_details,'Started recording'),1));
-% Event_timestamps_usec = Event_timestamps_usec - LoggerTime_ref;
+    Event_timestamps_usec = Event_timestamps_usec_raw;
+    Event_timestamps_usec(Ind_Logger_times)=Event_timestamps_usec(Ind_Logger_times) - Estimated_CD; % convert the time stamps that were originally logger times to transceiver times
+    %Event_timestamps_usec=round(Event_timestamps_usec); % round all time stamps to integer microseconds
 
-% plot the result of clock difference correction to check for mistakes
-Figure1 = figure(1);
-cla(Figure1)
-hold on
-legend('Location','best', 'AutoUpdate', 'on')
-plot((CD_transceiver_stamps-LoggerTime_ref)/(1e6*60), CD_sec*1e3,'r+', 'DisplayName','Recorded clock differences') % transceiver stamps in min at clock difference reports vs. the reported clock differences that were used for estimation
-plot((Event_timestamps_usec(Ind_Logger_times)-LoggerTime_ref)/(1e6*60),Estimated_CD/1e3,'b.', 'DisplayName','Estimated clock differences') % transceiver times in minutes vs. the estimated clock differences for all the time stamps that were originally logger times
-if length(Outsider)>=1
-    plot((CD_logger_stamps(Outsider)-CD_sec_Outsider-LoggerTime_ref)/(1e6*60), CD_sec_Outsider*1e3,'ro', 'DisplayName','Clock drift report excluded') % Clock drift report excluded from the fit
-end
-if length(Ind_Sync)>2
-    plot((Event_timestamps_usec(Ind_Sync(2:end-1))-LoggerTime_ref)/(1e6*60), mean(CD_sec*1e3) .* ones(length(Ind_Sync(2:end-1)),1),'k*','DisplayName', 'Clock synchronization events') % the events when the two clocks are synchronized in minutes
-end
-legend('Location','best', 'AutoUpdate', 'off')
-title(sprintf('%s %s #Abherent Clock drift report: %d', LoggerType, SerialNumber, length(Outsider)));
-% Even right after clock synchronization, the reported clock difference
-% may not be zero, because there is a finite uncertainty in the
-% reported clock difference
-ylabel('Logger time - transceiver time (ms)')
-xlabel('Transceiver time (minutes) from recording start')
-if exist('BackInd', 'var') % plot the position of the clock jump
-    Xval = (Event_timestamps_usec(BackInd)-LoggerTime_ref)/(1e6*60);
-    Yval = get(gca, 'YLim');
-    line([Xval Xval], Yval, 'Color','g','LineStyle','-')
-    text(Xval,repmat(mean(Yval),length(Xval),1), 'Clock Jump', 'Color','g')
+    % Check that transceiver time is continuously increasing. If not and the
+    % time difference is higher than 1 sec (10^6usec) most
+    % likely a reset of the clock happened just before a synchronization event
+    % or onset/offset event, or the transceiver was exchanged. We want to correct for that.
+    if any(diff(Event_timestamps_usec)<-10^6) % The transceiver clock went back in time at some point
+        DiffTime = diff(Event_timestamps_usec);
+        BackInd = find(DiffTime<-10^6);
+        fprintf(1,'The transceiver clock jumped back in time %d times\n', length(BackInd));
+        for IB = 1:length(BackInd)
+            % Check if that jump corresponds to a Startup line. If that the
+            % case, just ignore
+            if contains(Event_types_and_details{BackInd(IB)}, 'Startup') || contains(Event_types_and_details{BackInd(IB)+1}, 'Startup')
+                % ignore, these lines are not used
+            else % propose correction
+                fprintf(1,'\nJump %d of %.2f ms between event # %s\n%s\nand event # %s\n%s\n',IB, DiffTime(BackInd(IB))/10^3,Event_number{BackInd(IB)}, Event_types_and_details{BackInd(IB)},Event_number{BackInd(IB)+1}, Event_types_and_details{BackInd(IB)+1});
+                GoSignal = input('Correcting for the clock jump? No:0; Yes:1; Debug mode:2');
+                if GoSignal==1
+                    % Calculate the time difference of 2 transceiver reports that
+                    % are each apart from the jump
+                    Ind_Transc_times=find(contains(Event_timestamps_source,'Transceiver')); % events originally logged with transceiver time stamps
+                    ITt_before = Ind_Transc_times(find(Ind_Transc_times<=BackInd(IB),1,'Last'));
+                    ITt_after = Ind_Transc_times(find(Ind_Transc_times>BackInd(IB),1,'First'));
+                    Tt_before = Event_timestamps_usec(ITt_before);
+                    Tt_after = Event_timestamps_usec(ITt_after);
+
+                    % Check if that jump has already been identified in another
+                    % logger and indicated as an input to the function
+                    if ~isfield(TransceiverReset,Tt_before) % No information of this jump from a previous logger extraction, just proceed and fix it
+                        TransceiverReset.Tt_before = Tt_before;
+                        TransceiverReset.Tt_after = Tt_after;
+                        % Estimate the minimum time that elapsed during the jump using 2 logger
+                        % reports that are at the begining and end of the jump
+                        % (rounded to the nearest lower minute)
+                        ILt_before = Ind_Logger_times(find(Ind_Logger_times>=BackInd(IB),1,'First'));
+                        ILt_after = Ind_Logger_times(find(Ind_Logger_times<=ITt_after,1,'Last'));
+                        TransceiverReset.ElapsedTime_usec = floor((Event_timestamps_usec_raw(ILt_after) - Event_timestamps_usec_raw(ILt_before))/(60*10^6)) .* (60*10^6);
+                    elseif TransceiverReset.Tt_before == Tt_before
+                        % This jump was already fixed from a previous logger extraction, use the same correction
+                    else % There was a correction from a previous logger extraction but it might apply to a different jump in time? User input necessary to handle that!!
+                        warning('This jump clock need some manual input, unsure about which correction to use!!\n')
+                        keyboard
+                    end
+
+                    % Correct all transceiver times before the jump by the estimated
+                    % elapsed time
+                    TransceiverReset.Correction_us = TransceiverReset.Tt_before - TransceiverReset.Tt_after + TransceiverReset.ElapsedTime_usec;
+                    Event_timestamps_usec(1:BackInd(IB)) = Event_timestamps_usec(1:BackInd(IB)) - TransceiverReset.Correction_us;
+                    % Correct the values of the clock drift for this reset of the transceiver clock
+                    CD_sec(Ind_CD<=BackInd(IB)) = CD_sec(Ind_CD<=BackInd(IB)) + TransceiverReset.Correction_us/10^6; % we are in sec
+                    Estimated_CD(Ind_Logger_times<=BackInd(IB)) = Estimated_CD(Ind_Logger_times<=BackInd(IB)) + TransceiverReset.Correction_us; % we are in us
+
+                elseif GoSignal==2
+                    keyboard
+                else
+                    % doing no correction
+                end
+            end
+        end
+
+    end
+    % Convert time logger stamps of clock difference reports to transceiver time stamps
+    CD_transceiver_stamps=CD_logger_stamps-CD_sec*1e6;
+
+    % Get a reference for the time
+    LoggerTime_ref = Event_timestamps_usec(find(contains(Event_types_and_details,'Started recording'),1));
+    % Event_timestamps_usec = Event_timestamps_usec - LoggerTime_ref;
+
+    % plot the result of clock difference correction to check for mistakes
+    Figure1 = figure(1);
+    cla(Figure1)
+    hold on
+    legend('Location','best', 'AutoUpdate', 'on')
+    plot((CD_transceiver_stamps-LoggerTime_ref)/(1e6*60), CD_sec*1e3,'r+', 'DisplayName','Recorded clock differences') % transceiver stamps in min at clock difference reports vs. the reported clock differences that were used for estimation
+    plot((Event_timestamps_usec(Ind_Logger_times)-LoggerTime_ref)/(1e6*60),Estimated_CD/1e3,'b.', 'DisplayName','Estimated clock differences') % transceiver times in minutes vs. the estimated clock differences for all the time stamps that were originally logger times
+    if length(Outsider)>=1
+        plot((CD_logger_stamps(Outsider)-CD_sec_Outsider-LoggerTime_ref)/(1e6*60), CD_sec_Outsider*1e3,'ro', 'DisplayName','Clock drift report excluded') % Clock drift report excluded from the fit
+    end
+    if length(Ind_Sync)>2
+        plot((Event_timestamps_usec(Ind_Sync(2:end-1))-LoggerTime_ref)/(1e6*60), mean(CD_sec*1e3) .* ones(length(Ind_Sync(2:end-1)),1),'k*','DisplayName', 'Clock synchronization events') % the events when the two clocks are synchronized in minutes
+    end
+    legend('Location','best', 'AutoUpdate', 'off')
+    title(sprintf('%s %s #Abherent Clock drift report: %d', LoggerType, SerialNumber, length(Outsider)));
+    % Even right after clock synchronization, the reported clock difference
+    % may not be zero, because there is a finite uncertainty in the
+    % reported clock difference
+    ylabel('Logger time - transceiver time (ms)')
+    xlabel('Transceiver time (minutes) from recording start')
+    if exist('BackInd', 'var') % plot the position of the clock jump
+        Xval = (Event_timestamps_usec(BackInd)-LoggerTime_ref)/(1e6*60);
+        Yval = get(gca, 'YLim');
+        line([Xval Xval], Yval, 'Color','g','LineStyle','-')
+        text(Xval,repmat(mean(Yval),length(Xval),1), 'Clock Jump', 'Color','g')
+    end
 end
 
 
@@ -838,18 +865,19 @@ if Save_voltage
             File_timestamp_discrepancies_ms(File_i)=File_start_timestamps(File_i)/1000-File_timestamps_usec_from_sampling_period/1000; % difference between the event log time stamp and the time stamp calculated by counting samples, after roundig both to integer ms
             File_timestamp_discrepancies_LogRef=File_start_timestamps_LogRef(File_i)/1000-File_timestamps_usec_from_sampling_period_LogRef/1000; % difference between the event log time stamp and the time stamp calculated by counting samples, after roundig both to integer ms
             
-            Figure1; %#ok<VUNUS>
-            Ii_local = find(Ind_Logger_times == Ind_file_start(File_i));
-            hold on
-            if File_i==Nfiles
-                legend('AutoUpdate','on')
+            if ~any(contains(Event_types_and_details, 'LoggerController')) && any(CD_sec>=10-3)
+                Figure1; %#ok<VUNUS>
+                Ii_local = find(Ind_Logger_times == Ind_file_start(File_i));
+                hold on
+                if File_i==Nfiles
+                    legend('AutoUpdate','on')
+                end
+                plot((File_start_timestamps(File_i)-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'g.', 'DisplayName', 'File onset log')  % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
+                plot((File_timestamps_usec_from_sampling_period-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'c.', 'DisplayName', 'File onset estimated') % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
+                if File_i==Nfiles
+                    hold off
+                end
             end
-            plot((File_start_timestamps(File_i)-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'g.', 'DisplayName', 'File onset log')  % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
-            plot((File_timestamps_usec_from_sampling_period-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'c.', 'DisplayName', 'File onset estimated') % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
-            if File_i==Nfiles
-                hold off
-            end
-            
             
             if File_timestamp_discrepancies_ms(File_i)~=File_timestamp_discrepancies_LogRef && abs(File_timestamp_discrepancies_ms(File_i))>0.5
                 fprintf('!!!!! The conversion from logger to transceiver time is not linear, file onset time discrepancy is %fms in logger time when it is %fms in transciever time.\n', File_timestamp_discrepancies_LogRef,File_timestamp_discrepancies_ms(File_i))
@@ -941,7 +969,9 @@ if Save_voltage
             OUTDAT.Estimated_channelFS_Transceiver = Estimated_channelFS_Transceiver; % Exact value of sample frequency for each file according to transceiver clock
             OUTDAT.Timestamps_of_first_samples_usec=Timestamps_first_samples_usec;
             OUTDAT.Timestamps_of_first_samples_usec_Logger=Timestamps_first_samples_usec_Logger;
-            OUTDAT.CD_correction_data = struct('CD_logger_stamps',CD_logger_stamps(Ind_CD_local),'CD_sec',CD_sec_local,'Clock_difference_estimation',CD_Estimation);
+            if ~any(contains(Event_types_and_details, 'LoggerController')) && any(CD_sec>=1.2*10^-3)
+                OUTDAT.CD_correction_data = struct('CD_logger_stamps',CD_logger_stamps(Ind_CD_local),'CD_sec',CD_sec_local,'Clock_difference_estimation',CD_Estimation);
+            end
             OUTDAT.Samples_per_channel_per_file=Samples_per_channel_per_file(active_channel_i);
             OUTDAT.Sampling_period_usec_Logger=1e6/FS;
             OUTDAT.AD_count_to_uV_factor=ADC2uV_resolution;
@@ -1095,6 +1125,7 @@ if Save_voltage
         end
         fprintf('Channel %d/%d: Data from %d out of %d .DAT files in %s were processed and saved.\n',active_channel_i,Nactive_channels,Nfiles-sum(Missing_files), Nfiles, Input_folder);
         if Save_param_figure
+            print(Figure1,fullfile(Output_folder,sprintf('CD_correction%d.pdf',Active_channels(active_channel_i))),'-dpdf','-fillpage')
             saveas(Figure1,fullfile(Output_folder,sprintf('CD_correction%d.fig',Active_channels(active_channel_i))))
             if length(unique(Estimated_channelFS_Transceiver))>1
                 saveas(Figure2,fullfile(Output_folder,sprintf('SampleFrequency%d.fig',Active_channels(active_channel_i))))
