@@ -325,7 +325,7 @@ FS = str2double(strrep(FS_str,Str,''));
 Str = 'resolution=';
 IndLT = find(contains(Event_types_and_details,Str),1);
 Resolution_str = regexp(Event_types_and_details{IndLT},[Str '[0-9.]*E-6'],'match');
-ADC2uV_resolution = str2double(strrep(Resolution_str,Str,''));
+ADC2uV_resolution = 1e6*str2double(strrep(Resolution_str,Str,''));
 
 % get the AD count that represents zero volt
 % This value will be subtracted from the recorded AD counts.
