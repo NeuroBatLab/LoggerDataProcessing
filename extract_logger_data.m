@@ -324,7 +324,7 @@ FS = str2double(strrep(FS_str,Str,''));
 % in the same .mat files, to be used by detect_spikes_from_raw_voltage_trace.m
 Str = 'resolution=';
 IndLT = find(contains(Event_types_and_details,Str),1);
-Resolution_str = regexp(Event_types_and_details{IndLT},[Str '\d*E-6'],'match');
+Resolution_str = regexp(Event_types_and_details{IndLT},[Str '[0-9.]*E-6'],'match');
 ADC2uV_resolution = str2double(strrep(Resolution_str,Str,''));
 
 % get the AD count that represents zero volt
