@@ -199,28 +199,23 @@ end
 % get the date of recording
 Str = 'Date = ';
 IndLT = find(contains(Event_types_and_details,Str));
-Date_all = {};
-for ii=1:length(IndLT)
-    IndLT2 = strfind(Event_types_and_details{IndLT(ii)},Str);
-    IndLT3 = strfind(Event_types_and_details{IndLT(ii)},';');
-    IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-    Date_temp = Event_types_and_details{IndLT(ii)}((IndLT2+length(Str)): (IndLT3-1));
-    Date_all{ii} = [Date_temp(7:end)  Date_temp(4:5) Date_temp(1:2)]; %#ok<AGROW> % reformat the date to yyyymmdd
-end
+rec_date_str = regexp(Event_types_and_details(IndLT),[Str '[0-9/]*'],'match');
+Date_all = cellfun(@(s) datetime(strrep(s,Str,'')),rec_date_str);
+
 UDate = unique(Date_all);
 if length(UDate)>1
     fprintf('Several dates correspond to that recording,\nplease select the correct one by indicating its index\n')
     for ii=1:length(UDate)
-        fprintf('%d. %s\n', ii, UDate{ii});
+        fprintf('%d. %s\n', ii, datestr(UDate(ii)));
     end
     IndDate = input('Your choice:');
 else
     IndDate=1;
 end
-Date = UDate{IndDate};
+Date = UDate(IndDate);
 % Find the first and last occurence of that date
-IndDateStart = find(contains(Date_all, Date),1,'first');
-IndDateStop = find(contains(Date_all, Date),1,'last');
+IndDateStart = find(Date_all==Date,1,'first');
+IndDateStop = find(Date_all==Date,1,'last');
 
 
 % restrict the event data to that particular
@@ -243,16 +238,16 @@ Event_number = Event_number(Start:Stop);
 % get the type of logger
 Str = 'Logger type=';
 IndLT = find(contains(Event_types_and_details,Str),1);
-IndLT2 = strfind(Event_types_and_details{IndLT},Str);
-LoggerType = Event_types_and_details{IndLT}(IndLT2+length(Str) +(0:3));
+logger_type_str = regexp(Event_types_and_details{IndLT},[Str '\w*'],'match');
+LoggerType = strrep(logger_type_str{1},Str,'');
+LoggerType = LoggerType(1:4);
 
 % get the serial number of the logger
 Str = 'serial number=';
 IndLT = find(contains(Event_types_and_details,Str),1);
-IndLT2 = strfind(Event_types_and_details{IndLT},Str);
-IndLT3 = strfind(Event_types_and_details{IndLT},';');
-IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-SerialNumber = Event_types_and_details{IndLT}((IndLT2+length(Str)): (IndLT3-1));
+serial_number_str = regexp(Event_types_and_details{IndLT},[Str '\d*'],'match');
+SerialNumber = strrep(serial_number_str{1},Str,'');
+
 if strcmp(filesep, Input_folder(end))
     [~,F] = fileparts(Input_folder(1:end-1));
 else
@@ -265,10 +260,9 @@ end
 % get the total number of channels, including inactive ones
 Str = 'Number of channels=';
 IndLT = find(contains(Event_types_and_details,Str),1);
-IndLT2 = strfind(Event_types_and_details{IndLT},Str);
-IndLT3 = strfind(Event_types_and_details{IndLT},';');
-IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-Num_channels = str2double(Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1)));
+nChannel_str = regexp(Event_types_and_details{IndLT},[Str '\d*'],'match');
+Num_channels = str2double(strrep(nChannel_str,Str,''));
+
 if strcmp(LoggerType, 'Audi') && (Num_channels~=1)
     error('There is %d channels when we are expecting only one for an audio logger (logger Type = %s)\n', Num_channels, LoggerType)
 end
@@ -321,10 +315,8 @@ end
 % get the sampling frequency of the logger
 Str = 'sampling frequency=';
 IndLT = find(contains(Event_types_and_details,Str),1);
-IndLT2 = strfind(Event_types_and_details{IndLT},Str);
-IndLT3 = strfind(Event_types_and_details{IndLT},'Hz');
-IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-FS = str2double(Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1)));
+FS_str = regexp(Event_types_and_details{IndLT},[Str '\d*'],'match');
+FS = str2double(strrep(FS_str,Str,''));
 
 % get the coversion from bits to uV
 % voltage in microvolt = (raw AD count - AD_count_for_zero_voltage) * AD_count_to_uV_factor
@@ -332,19 +324,15 @@ FS = str2double(Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1)
 % in the same .mat files, to be used by detect_spikes_from_raw_voltage_trace.m
 Str = 'resolution=';
 IndLT = find(contains(Event_types_and_details,Str),1);
-IndLT2 = strfind(Event_types_and_details{IndLT},Str);
-IndLT3 = strfind(Event_types_and_details{IndLT},'V/bit');
-IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-ADC2uV_resolution = str2double(Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1)))*1e6;
+Resolution_str = regexp(Event_types_and_details{IndLT},[Str '\d*E-6'],'match');
+ADC2uV_resolution = str2double(strrep(Resolution_str,Str,''));
 
 % get the AD count that represents zero volt
 % This value will be subtracted from the recorded AD counts.
 Str = 'ADC nominal offset=';
 IndLT = find(contains(Event_types_and_details,Str),1);
-IndLT2 = strfind(Event_types_and_details{IndLT},Str);
-IndLT3 = strfind(Event_types_and_details{IndLT},' bits');
-IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-ADC_zero_voltage = int16(str2double(Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1))));
+zero_voltage_str = regexp(Event_types_and_details{IndLT},[Str '\d*'],'match');
+ADC_zero_voltage = int16(str2double(strrep(zero_voltage_str,Str,'')));
 
 % get the AD count for unwritten data.
 % When recording is stopped (at the end of a recording session or in the
@@ -354,23 +342,20 @@ ADC_zero_voltage = int16(str2double(Event_types_and_details{IndLT}((IndLT2+lengt
 % integer with all bits being ones) in the version of Neurolog-16.
 Str = 'Erased data in hex=';
 IndLT = find(contains(Event_types_and_details,Str),1);
-IndLT2 = strfind(Event_types_and_details{IndLT},Str);
-IndLT3 = strfind(Event_types_and_details{IndLT},';');
-IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-ADC_unwritten_data = str2double(Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1)));
+unwritten_data_str = regexp(Event_types_and_details{IndLT},[Str '\d*'],'match');
+ADC_unwritten_data = str2double(strrep(unwritten_data_str,Str,''));
 
 % get the root name for .dat files; eg. 'NEUR' for neurologger file names like "NEUR_003.DAT"
 Str = 'Flash File Root Name = "';
 IndLT = find(contains(Event_types_and_details,Str),1);
-IndLT2 = strfind(Event_types_and_details{IndLT},Str);
-IndLT3 = strfind(Event_types_and_details{IndLT},'";');
-IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-Dat_rootname = Event_types_and_details{IndLT}((IndLT2+length(Str)) : (IndLT3-1));
+rootname_str = regexp(Event_types_and_details{IndLT},[Str '[A-Z]*'],'match');
+Dat_rootname = strrep(rootname_str{1},Str,'');
+
 AllDatFiles = dir(fullfile(Input_folder, '*.dat'));
 if isempty(AllDatFiles)
     AllDatFiles = dir(fullfile(Input_folder, '*.DAT'));
 end
-Dat_rootname = strrep(Dat_rootname,'"',''); % remove uncessary quotation marks
+
 if ~strcmp(Dat_rootname, AllDatFiles(1).name(1:4))
     error('the root name for data files indicated in the log does not correspond to those in the folder:%s\n', Dat_rootname);
 end
@@ -390,19 +375,11 @@ Str = 'CD=';
 n_std_outsider_diff = 2; % multiple of standard deviation of difference of clock differences to detect and eliminate spurious CD reports
 
 Ind_CD = find(contains(Event_types_and_details,Str));
-CD_sec=nan(length(Ind_CD),1);
-CD_logger_stamps=nan(length(Ind_CD),1);
-for CD_i=1:length(Ind_CD)
-    IndLT2 = strfind(Event_types_and_details{Ind_CD(CD_i)},Str);
-    if any(contains(Event_types_and_details, 'LoggerController'))
-        IndLT3 = length(Event_types_and_details{Ind_CD(CD_i)});
-    elseif any(contains(Event_types_and_details, 'LoggerDemo'))
-        IndLT3 = strfind(Event_types_and_details{Ind_CD(CD_i)},' ');% find the empty space after the clock difference value from eg. "...CD=-0.001000 RR=0..."
-        IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
-    end
-    CD_sec(CD_i)=str2double(Event_types_and_details{Ind_CD(CD_i)}((IndLT2+length(Str)) : (IndLT3-1))); % clock differences are in s
-    CD_logger_stamps(CD_i)=Event_timestamps_usec_raw(Ind_CD(CD_i)); % the time of the logger clock when the clock difference was reported
-end
+
+CD_sec = cellfun(@(s) regexp(s,[Str '[-0-9.]*'],'match'),Event_types_and_details(Ind_CD),'un',0);
+CD_sec = cellfun(@(x) str2double(strrep(x,Str,'')),CD_sec);
+
+CD_logger_stamps = Event_timestamps_usec_raw(Ind_CD);
 
 % Check what software was used to record and if the clock drift correction
 % was enough to avoid more than 1ms drift between transceiver and logger
