@@ -197,25 +197,31 @@ else
 end
 
 % get the date of recording
+% get the date of recording
 Str = 'Date = ';
 IndLT = find(contains(Event_types_and_details,Str));
-rec_date_str = regexp(Event_types_and_details(IndLT),[Str '[0-9/]*'],'match');
-Date_all = cellfun(@(s) datetime(strrep(s,Str,'')),rec_date_str);
-
+Date_all = {};
+for ii=1:length(IndLT)
+    IndLT2 = strfind(Event_types_and_details{IndLT(ii)},Str);
+    IndLT3 = strfind(Event_types_and_details{IndLT(ii)},';');
+    IndLT3 = IndLT3(find(IndLT3>IndLT2,1));
+    Date_temp = Event_types_and_details{IndLT(ii)}((IndLT2+length(Str)): (IndLT3-1));
+    Date_all{ii} = [Date_temp(7:end)  Date_temp(4:5) Date_temp(1:2)]; %#ok<AGROW> % reformat the date to yyyymmdd
+end
 UDate = unique(Date_all);
 if length(UDate)>1
     fprintf('Several dates correspond to that recording,\nplease select the correct one by indicating its index\n')
     for ii=1:length(UDate)
-        fprintf('%d. %s\n', ii, datestr(UDate(ii)));
+        fprintf('%d. %s\n', ii, UDate{ii});
     end
     IndDate = input('Your choice:');
 else
     IndDate=1;
 end
-Date = UDate(IndDate);
+Date = UDate{IndDate};
 % Find the first and last occurence of that date
-IndDateStart = find(Date_all==Date,1,'first');
-IndDateStop = find(Date_all==Date,1,'last');
+IndDateStart = find(contains(Date_all, Date),1,'first');
+IndDateStop = find(contains(Date_all, Date),1,'last');
 
 
 % restrict the event data to that particular
@@ -383,7 +389,7 @@ CD_logger_stamps = Event_timestamps_usec_raw(Ind_CD);
 
 % Check what software was used to record and if the clock drift correction
 % was enough to avoid more than 1ms drift between transceiver and logger
-if any(contains(Event_types_and_details, 'LoggerController')) && ~any(CD_sec>=1.2*10^-3)
+if any(contains(Event_types_and_details, 'LoggerController')) && ~any(abs(CD_sec)>=1.2*10^-3)
     fprintf(1,'No clock drift correction needed, all values are below 1.2ms\n')
     Event_timestamps_usec = Event_timestamps_usec_raw;
 
