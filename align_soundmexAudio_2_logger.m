@@ -85,6 +85,9 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
     end
     
     if ~isempty(Ttl_status)
+        if strcmp(ExpDate, '190508')
+            Ttl_status = Ttl_status*10; % Fro some reason the signal is ten fold lower on that day....
+        end
         Num_Samp_audiofile(w,2)= length(Ttl_status);
         if strcmp(TTL_pulse_generator, 'MOTU')
             TTLHigh = find(diff(Ttl_status)>0.5)+1; % identify the increases in volatge
@@ -239,6 +242,7 @@ Transceiver_time_dfall1 = unique(cell2mat(Transceiver_time_dfall1));
 % restrict the dataset to the time frame we want to look at
 if length(OnsetTime)>1 || length(OffsetTime)>1
     if length(OnsetTime)>1
+        OnsetTime = [OnsetTime; 0];
         fprintf(1,'%d Onset times where detected for %s, indicate which one you want to select:\n', length(OnsetTime), Session_strings{1})
         for oo=1:length(OnsetTime)
             fprintf(1,'%d. %d\n', oo, OnsetTime(oo));
@@ -247,6 +251,7 @@ if length(OnsetTime)>1 || length(OffsetTime)>1
         OnsetTime = OnsetTime(OnInd);
     end
     if length(OffsetTime)>1
+        OffsetTime = [OffsetTime; Inf];
         fprintf(1,'%d Offset times where detected for %s, indicate which one you want to select:\n', length(OffsetTime), Session_strings{1})
         for oo=1:length(OffsetTime)
             fprintf(1,'%d. %d\n', oo, OffsetTime(oo));
