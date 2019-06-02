@@ -127,6 +127,9 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
             Pulse_idx_audio{w} = cell2mat(cellfun(@(X) str2double(regexprep(X, ' ','')), Digits, 'UniformOutput',0));
         elseif strcmp(TTL_pulse_generator, 'Avisoft')
             TTLHigh = find(abs(diff(Ttl_status))>0.2)+1; % identify the increases in volatge
+            if isempty(TTLHigh)
+                error('ERROR: No TTL pulses detected!!!\n')
+            end
             TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
             TTLHigh((find(diff(TTLHigh)==2))+1)=[]; % eliminate almost consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
             DiffTTL = round(diff(TTLHigh)/FS*TTL_param.Base_ttl_length);
@@ -321,70 +324,71 @@ if strcmp(Method, 'rise')
         end
     end
     
-%     % We might have not catch if some pulse trains were missing right at the begining
-%     % Check TTL pulses Idx we're expecting 0 value for the first 9 then 10,
-%     % 20...etc
-%     TransIndObs = (find(diff(Pulse_Idx_Transc)==10)+1)'; % indices were we reach a new 10
-%     TransIndExp = (10:10:(round(length(Pulse_Idx_Transc)/10)*10));
-%     if any( TransIndObs - TransIndExp)
-%         % some of the consecutive first pulses are missing add some nan or
-%         % empty spots according to the number of missing pulse trains
-%         NumMissing = 10 - (find(diff(Pulse_Idx_Transc)==10,1,'first')+1);
-%         Pulse_Idx_Transc = [nan(NumMissing,1); Pulse_Idx_Transc];
-%         Pulse_TimeStamp_Transc = [nan(NumMissing,1); Pulse_TimeStamp_Transc];
-%         TransIndObs = (find(diff(Pulse_Idx_Transc)==10)+1)'; % indices were we reach a new 10
-%         TransIndExp = (10:10:(round(length(Pulse_Idx_Transc)/10)*10));
-%         if any( TransIndObs - TransIndExp) % if this is still not right, error
-%             error('In aligh_soundmexAudio_2_logger: Impossible to correct for the missing pulses\n')
-%         end
-%     end
-        
-        
-    elseif strcmp(Method, 'risefall')
-        if strcmp(TTL_pulse_generator, 'MOTU')
-            Transceiver_time_doff = Transceiver_time_dfall1;
-            Transceiver_time_don = Transceiver_time_drise1;
-        elseif strcmp(TTL_pulse_generator, 'Avisoft')
-            Transceiver_time_doff = Transceiver_time_drise1;
-            Transceiver_time_don = Transceiver_time_dfall1;
-        end
-        if length(Transceiver_time_doff) ~= length(Transceiver_time_don)
-            fprintf('The number of rising edge is not the same as the number of falling edges on Deuteron\nTrying to fix that!\n')
-            IndBreak=Inf;
-            while ~isempty(IndBreak)
-                ComLength=min(length(Transceiver_time_doff), length(Transceiver_time_don));
-                Pulse_dur_ms_hyp = round(Transceiver_time_doff(1:ComLength)-Transceiver_time_don(1:ComLength));
-                IndBreak = min([find(Pulse_dur_ms_hyp>TTL_param.IPI,1,'First') find(Pulse_dur_ms_hyp<0,1,'First')]); % this is the first set of on/off edges that is causing an issue
-                if ~isempty(IndBreak) && Pulse_dur_ms_hyp(IndBreak)>TTL_param.IPI % an off edge is missing supress the on edge and calculate the Pulse duration again
-                    Transceiver_time_don(IndBreak)=[];
-                elseif ~isempty(IndBreak) &&  Pulse_dur_ms_hyp(IndBreak)<0 % an on edge is missing supress the off edge and calculate the Pulse duration again
-                    Transceiver_time_doff(IndBreak)=[];
-                end
+    %     % We might have not catch if some pulse trains were missing right at the begining
+    %     % Check TTL pulses Idx we're expecting 0 value for the first 9 then 10,
+    %     % 20...etc
+    %     TransIndObs = (find(diff(Pulse_Idx_Transc)==10)+1)'; % indices were we reach a new 10
+    %     TransIndExp = (10:10:(round(length(Pulse_Idx_Transc)/10)*10));
+    %     if any( TransIndObs - TransIndExp)
+    %         % some of the consecutive first pulses are missing add some nan or
+    %         % empty spots according to the number of missing pulse trains
+    %         NumMissing = 10 - (find(diff(Pulse_Idx_Transc)==10,1,'first')+1);
+    %         Pulse_Idx_Transc = [nan(NumMissing,1); Pulse_Idx_Transc];
+    %         Pulse_TimeStamp_Transc = [nan(NumMissing,1); Pulse_TimeStamp_Transc];
+    %         TransIndObs = (find(diff(Pulse_Idx_Transc)==10)+1)'; % indices were we reach a new 10
+    %         TransIndExp = (10:10:(round(length(Pulse_Idx_Transc)/10)*10));
+    %         if any( TransIndObs - TransIndExp) % if this is still not right, error
+    %             error('In aligh_soundmexAudio_2_logger: Impossible to correct for the missing pulses\n')
+    %         end
+    %     end
+    
+elseif strcmp(Method, 'risefall')
+    if strcmp(TTL_pulse_generator, 'MOTU')
+        Transceiver_time_doff = Transceiver_time_dfall1;
+        Transceiver_time_don = Transceiver_time_drise1;
+    elseif strcmp(TTL_pulse_generator, 'Avisoft')
+        Transceiver_time_doff = Transceiver_time_drise1;
+        Transceiver_time_don = Transceiver_time_dfall1;
+    end
+    ComLength=min(length(Transceiver_time_doff), length(Transceiver_time_don));
+    Pulse_dur_ms_hyp = round(Transceiver_time_doff(1:ComLength)-Transceiver_time_don(1:ComLength));
+    if (length(Transceiver_time_doff) ~= length(Transceiver_time_don)) || any(Pulse_dur_ms_hyp<0)
+        fprintf('The number of rising edge is not the same as the number of falling edges on Deuteron\nor there is a missing edge that resut in negative delays\nTrying to fix that!\n')
+        IndBreak=Inf;
+        while ~isempty(IndBreak)
+            ComLength=min(length(Transceiver_time_doff), length(Transceiver_time_don));
+            Pulse_dur_ms_hyp = round(Transceiver_time_doff(1:ComLength)-Transceiver_time_don(1:ComLength));
+            IndBreak = min([find(Pulse_dur_ms_hyp>TTL_param.IPI,1,'First') find(Pulse_dur_ms_hyp<0,1,'First')]); % this is the first set of on/off edges that is causing an issue
+            if ~isempty(IndBreak) && Pulse_dur_ms_hyp(IndBreak)>TTL_param.IPI % an off edge is missing supress the on edge and calculate the Pulse duration again
+                Transceiver_time_don(IndBreak)=[];
+            elseif ~isempty(IndBreak) &&  Pulse_dur_ms_hyp(IndBreak)<0 % an on edge is missing supress the off edge and calculate the Pulse duration again
+                Transceiver_time_doff(IndBreak)=[];
             end
         end
-        
-        Pulse_dur_ms = round(Transceiver_time_doff-Transceiver_time_don); % This is the duration of each pulse
-        IP_transc = round(Transceiver_time_don(2:end)-Transceiver_time_doff(1:(end-1))); % This is the interval between pulses
-        PulseInd = [1; find(round(IP_transc/1000)>=(TTL_param.IPTI-0.5))+1]; % These are the indices of the first pulse of each pulse train in Transceiver_time_don and Transciever_time_doff
-        Pulse_TimeStamp_Transc = Transceiver_time_don(PulseInd);% These are the time onsets of each pulse train
-        % Now extract the pulses indices coded in the trains of pulses'
-        % durations
-        NPulses = length(PulseInd);
-        Digits = cell(NPulses,1);
-        for pp=1:NPulses
-            if pp==NPulses % special case for the last pulse
-                Digits{pp} = int2str(round(Pulse_dur_ms(PulseInd(pp) :end)' - TTL_param.Min_ttl_length));
-            else
-                Digits{pp} = int2str(round(Pulse_dur_ms(PulseInd(pp):PulseInd(pp+1)-1)' - TTL_param.Min_ttl_length));
-            end
+    end
+    
+    Pulse_dur_ms = round(Transceiver_time_doff-Transceiver_time_don); % This is the duration of each pulse
+    IP_transc = round(Transceiver_time_don(2:end)-Transceiver_time_doff(1:(end-1))); % This is the interval between pulses
+    PulseInd = [1; find(round(IP_transc/1000)>=(TTL_param.IPTI-0.5))+1]; % These are the indices of the first pulse of each pulse train in Transceiver_time_don and Transciever_time_doff
+    Pulse_TimeStamp_Transc = Transceiver_time_don(PulseInd);% These are the time onsets of each pulse train
+    % Now extract the pulses indices coded in the trains of pulses'
+    % durations
+    NPulses = length(PulseInd);
+    Digits = cell(NPulses,1);
+    for pp=1:NPulses
+        if pp==NPulses % special case for the last pulse
+            Digits{pp} = int2str(round(Pulse_dur_ms(PulseInd(pp) :end)' - TTL_param.Min_ttl_length));
+        else
+            Digits{pp} = int2str(round(Pulse_dur_ms(PulseInd(pp):PulseInd(pp+1)-1)' - TTL_param.Min_ttl_length));
         end
-        Pulse_Idx_Transc = cell2mat(cellfun(@(X) str2double(regexprep(X, ' ','')), Digits, 'UniformOutput',0));
-        % Eliminate obvious errors of indices (consecutive indices that
-        % have a wrong value)
-        ErroneousInd = find(diff(Pulse_Idx_Transc)~=1);
-        ErrorInd = ErroneousInd(diff(ErroneousInd)==1)+1;
-        Pulse_Idx_Transc(ErrorInd) = [];
-        Pulse_TimeStamp_Transc(ErrorInd) = [];
+    end
+    Pulse_Idx_Transc = cell2mat(cellfun(@(X) str2double(regexprep(X, ' ','')), Digits, 'UniformOutput',0));
+    % Eliminate obvious errors of indices (consecutive indices that
+    % have a wrong value)
+    ErroneousInd = find(diff(Pulse_Idx_Transc)~=1);
+    ErrorInd = ErroneousInd(diff(ErroneousInd)==1)+1;
+    Pulse_Idx_Transc(ErrorInd) = [];
+    Pulse_TimeStamp_Transc(ErrorInd) = [];
 end
 
 %% find common indices and eliminate outlayers
@@ -398,7 +402,11 @@ AbsDiff_PTST = abs(diff(Pulse_TimeStamp_Transc));
 Outsider_diff = find((AbsDiff_PTST > (nanmean(AbsDiff_PTST)+ 4*nanstd(AbsDiff_PTST))) + (AbsDiff_PTST < nanmean(AbsDiff_PTST - 4*nanstd(AbsDiff_PTST)))); % identify indices of the derivative of Pulse_TimeStamp_Transc that are 4 standard deviation away from the mean
 % consecutive indices of the derivative that are away from the average
 % distribution correspond to outsider points that we can eliminate.
-Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative
+if Outsider_diff==1 % the first report is wrong!
+    Outsider_local = 1;
+else
+    Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative
+end
 Outsider_idx = Pulse_idx(Outsider_local); % % Indices of TTL pulses that are discarted
 Outsider_idx_PTST=Pulse_TimeStamp_Transc(Outsider_local);
 Outsider_idx_PSA = Pulse_samp_audio(Outsider_local);
