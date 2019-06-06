@@ -89,6 +89,11 @@ function extract_logger_data(Input_folder,varargin)
 %                           that the function has then to call Mat2NlxSpike
 %                           which does not seem to work under mac...
 %                           default is 0.
+%
+% 'DetectSpike'     Logical. Set to 1 by default for detecting and
+%                           extracting spikes in recordings obtained from a
+%                           mouse or rat logger.
+%
 % 'NumElectrodePerBundle'
 %                           Number of electrodes per bundle. Default in 4,
 %                           set for tetrodes
@@ -117,8 +122,8 @@ function extract_logger_data(Input_folder,varargin)
 last_code_update='03/27/2019, Julie Elie'; % identifies the version of the code
 
 %% Sorting input arguments
-pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','ActiveChannels', 'AutoSpikeThreshFactor', 'TransceiverReset'};
-dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 4, 50,0,[],3, struct()};
+pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave', 'DetectSpike','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','ActiveChannels', 'AutoSpikeThreshFactor', 'TransceiverReset'};
+dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 1, 4, 50,0,[],3, struct()};
 [Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike,Active_channels, AutoSpikeThreshFactor,TransceiverReset] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 if strcmp(EventFile, 'one_file')
@@ -969,7 +974,7 @@ if Save_voltage
             
             % If neural data, supress data where artifacts are detected (RF
             % signal emission by the logger causing pulses in the signal)
-            if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
+            if (strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')) && DetectSpike
                 ThreshFactor = [35 25];
                 Buffer_RFBug = 6*10^-3;
                 StartedRec = find(contains(Event_types_and_details, 'Mode change. Started recording'),1,'first');
@@ -1089,7 +1094,7 @@ if Save_voltage
             
             % save the data
             %%
-            if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
+            if (strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')) && DetectSpike
                 OUTDAT_spikes.Peaks_positions = Peaks_positions;
                 OUTDAT_spikes.Peaks_voltage_values =  Peaks_voltage_values;
                 OUTDAT_spikes.DataDeletionOnsetOffset_usec = DataDeletionOnsetOffset_usec{active_channel_i};
@@ -1135,7 +1140,7 @@ if Save_voltage
     % sort the potential spike arrival times on tetrode bundles to
     % only keep one 4 dimensional snippet per spike
     
-    if strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')
+    if (strcmp(LoggerType(1:3), 'Mou') || strcmp(LoggerType(1:3), 'Rat')) && DetectSpike
         %%
         fprintf(1,'-> Harmonizing and Saving data cleaning info for future reference\n')
         % for each event keep the earlier onset and the latest offset of
