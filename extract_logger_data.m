@@ -124,7 +124,7 @@ last_code_update='03/27/2019, Julie Elie'; % identifies the version of the code
 %% Sorting input arguments
 pnames = {'OutputFolder', 'BatID', 'EventFile','Voltage','OutSettings','Diary','CD_Estimation','FileOnsetTime','NlxSave', 'DetectSpike','NumElectrodePerBundle','SpikeCollisionTolerance', 'CheckSpike','ActiveChannels', 'AutoSpikeThreshFactor', 'TransceiverReset'};
 dflts  = {fullfile(Input_folder, 'extracted_data'), '00000','one_file', 1, 1,1, 'fit', 'logfile',0, 1, 4, 50,0,[],3, struct()};
-[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, Num_EperBundle, SpikeCollisionTolerance, CheckSpike,Active_channels, AutoSpikeThreshFactor,TransceiverReset] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+[Output_folder, BatID, EventFile,Save_voltage, Save_param_figure,Diary, CD_Estimation,FileOnsetTime, NlxSave, DetectSpike, Num_EperBundle, SpikeCollisionTolerance, CheckSpike,Active_channels, AutoSpikeThreshFactor,TransceiverReset] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 if strcmp(EventFile, 'one_file')
     Save_event_file=1;
