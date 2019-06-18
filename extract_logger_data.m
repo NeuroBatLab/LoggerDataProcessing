@@ -1291,6 +1291,7 @@ if Save_param_figure
     OUT.save_event_file=Save_event_file;
     OUT.save_voltage_AD_count_files=Save_voltage;
     OUT.Active_channels=Active_channels;
+    OUT.AutoSpikeThreshFactor = AutoSpikeThreshFactor;
     OUT.Ref_channel=Ref_channel;
     OUT.Clock_difference_estimation=CD_Estimation;
     OUT.Timestamps_estimation=FileOnsetTime;

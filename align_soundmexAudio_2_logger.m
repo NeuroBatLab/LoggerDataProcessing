@@ -126,9 +126,13 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
             end
             Pulse_idx_audio{w} = cell2mat(cellfun(@(X) str2double(regexprep(X, ' ','')), Digits, 'UniformOutput',0));
         elseif strcmp(TTL_pulse_generator, 'Avisoft')
-            TTLHigh = find(abs(diff(Ttl_status))>0.2)+1; % identify the increases in volatge
-            if isempty(TTLHigh)
-                error('ERROR: No TTL pulses detected!!!\n')
+            TTLHigh = find(abs(diff(Ttl_status))>0.18)+1; % identify the increases in volatge
+            if isempty(TTLHigh) % try a lower threshold!
+                warning('TTL pulses were very low amplitude, setting threshold for detection 10 times lower')
+                TTLHigh = find(abs(diff(Ttl_status))>0.018)+1;
+                if isempty(TTLHigh)
+                    error('ERROR: No TTL pulses detected!!!\n')
+                end
             end
             TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
             TTLHigh((find(diff(TTLHigh)==2))+1)=[]; % eliminate almost consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
@@ -179,6 +183,27 @@ end
 Pulse_idx_audio = cell2mat(Pulse_idx_audio);
 Pulse_samp_audio = cell2mat(Pulse_samp_audio);
 File_number = cell2mat(File_number);
+
+% Check if some pulse audio are Nan
+NanAudio = find(isnan(Pulse_idx_audio));
+if length(NanAudio)>10
+    error('There is way too many Nan in Pulse Audio!!')
+elseif length(NanAudio>0)
+    Pulse_idx_audio(NanAudio)=[];
+    Pulse_samp_audio(NanAudio)=[];
+    File_number(NanAudio)=[];
+end
+
+% check if some pulse audio are zero
+ZeroAudio = find(Pulse_idx_audio==0);
+if length(ZeroAudio)>10
+    error('There is way too many Nan in Pulse Audio!!')
+elseif length(ZeroAudio>0)
+    Pulse_idx_audio(ZeroAudio)=[];
+    Pulse_samp_audio(ZeroAudio)=[];
+    File_number(ZeroAudio)=[];
+end
+
 
 % Check if several pulses have the same value, the first one is most
 % probably the good one
