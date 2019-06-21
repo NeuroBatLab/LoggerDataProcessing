@@ -441,7 +441,19 @@ Pulse_idx(Outsider_local) = [];
 Pulse_TimeStamp_Transc(Outsider_local)= [];
 Pulse_samp_audio(Outsider_local) = [];
 File_number(Outsider_local) = [];
+% File_number should always increase by max 1, otherwise, indices were
+% repertead and not place correctly
+Outsider_local = find(diff(File_number)>5)+1;
+Outsider_idx = [Outsider_idx; Pulse_idx(Outsider_local)]; % % Indices of TTL pulses that are discarted
+Outsider_idx_PTST= [Outsider_idx_PTST; Pulse_TimeStamp_Transc(Outsider_local)];
+Outsider_idx_PSA = [Outsider_idx_PSA; Pulse_samp_audio(Outsider_local)];
+Outsider_FileNumber = [Outsider_FileNumber; File_number(Outsider_local)];
 
+% eliminate the wrong TTL pulses from the data
+Pulse_idx(Outsider_local) = [];
+Pulse_TimeStamp_Transc(Outsider_local)= [];
+Pulse_samp_audio(Outsider_local) = [];
+File_number(Outsider_local) = [];
 
 
 
