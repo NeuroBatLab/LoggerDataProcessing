@@ -427,8 +427,8 @@ AbsDiff_PTST = abs(diff(Pulse_TimeStamp_Transc));
 Outsider_diff = find((AbsDiff_PTST > (nanmean(AbsDiff_PTST)+ 4*nanstd(AbsDiff_PTST))) + (AbsDiff_PTST < nanmean(AbsDiff_PTST - 4*nanstd(AbsDiff_PTST)))); % identify indices of the derivative of Pulse_TimeStamp_Transc that are 4 standard deviation away from the mean
 % consecutive indices of the derivative that are away from the average
 % distribution correspond to outsider points that we can eliminate.
-if Outsider_diff==1 % the first report is wrong!
-    Outsider_local = 1;
+if any(Outsider_diff==1) % the first report is wrong!
+    Outsider_local = [1; Outsider_diff(find(diff(Outsider_diff)==1)+1)];
 else
     Outsider_local = Outsider_diff(find(diff(Outsider_diff)==1)+1); % identify consecutive indices of the derivative that are 4 standard deviation away from the mean derivative
 end
