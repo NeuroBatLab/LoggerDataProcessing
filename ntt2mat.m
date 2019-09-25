@@ -1,6 +1,6 @@
 function ntt2mat(InputPath, MatlabImpExpCodePath,OutputPath)
 %Hard coded input:
-TimeStep = 10*60*10^6;% Time Step of 10 min for the calculation of the time varying spike sorting quality measures
+TimeStep = 20*60*10^6;% Time Step of 30 min for the calculation of the time varying spike sorting quality measures
 DebugFig = 1; % Set to 1 to see figures of spike sorting quality.
 % Deal with input variables
 if nargin<1
@@ -66,7 +66,13 @@ for Ntt_i=1:Num_Ntt % for each spike sorted unit
         [Spike_arrival_times, Spike_sort_ID, Spike_snippets] =...
                      Nlx2MatSpike( NTT_Filename, FieldSelectionFlags,...
                      0, ExtractionMode,[]);
-        Features = squeeze(max(Spike_snippets, [],1)); % Extracting the peak of each 4Dim spike snippet
+        MaxFeatures = squeeze(max(Spike_snippets, [],1))'; % Extracting the peak of each 4Dim spike snippet
+        EFeatures = (squeeze(sum(Spike_snippets.^2,1))'.^0.5)./size(Spike_snippets,1);
+        PCAFeatures = nan(size(Spike_snippets,3),size(Spike_snippets,2));
+        for cc=1:size(Spike_snippets,2)
+            [~,Score] = pca(squeeze(Spike_snippets(:,cc,:))');
+            PCAFeatures(:,cc) = Score(:,1);
+        end
         clear Spike_snippets
         SS_U_ID = unique(Spike_sort_ID);
         % Loop through time points and clusters and calculate time varying spike sort
@@ -76,32 +82,60 @@ for Ntt_i=1:Num_Ntt % for each spike sorted unit
         MaxPoint = ceil(max(Spike_arrival_times)/TimeStep)*TimeStep;
         TimePoints = MinPoint:TimeStep:MaxPoint;
         Nwin = length(TimePoints)-1;
-        LRatio = nan(Nwin, length(SS_U_ID));
-        L = LRatio;
-        Df = LRatio;
-        IsolationDistance = LRatio;
+        TimeLRatio = nan(Nwin, length(SS_U_ID));
+        TimeL = TimeLRatio;
+        TimeDf = TimeLRatio;
+        TimeIsolationDistance = TimeLRatio;
         for ww=1:Nwin
             Spike_local = find((Spike_arrival_times>=TimePoints(ww)) .* (Spike_arrival_times<TimePoints(ww+1)));
             for SS_i = 1:length(SS_U_ID)
                 ClusterSpikeID = find(Spike_sort_ID(Spike_local) == SS_U_ID(SS_i));
-                [L(ww,SS_i), LRatio(ww,SS_i), Df(ww,SS_i)] = l_ratio(Features(:, Spike_local)', ClusterSpikeID);
-                [IsolationDistance(ww,SS_i)] = isolation_distance(Features(:, Spike_local)', ClusterSpikeID);
+                if length(ClusterSpikeID)<=8
+                    % There is not enough spikes for that time point to
+                    % calculate the Lratio, we need to have more spikes
+                    % than the number of features
+                else   
+%                     [L(ww,SS_i), LRatio(ww,SS_i), Df(ww,SS_i)] = l_ratio(MaxFeatures(Spike_local,:), ClusterSpikeID);
+                      [TimeL(ww,SS_i), TimeLRatio(ww,SS_i), TimeDf(ww,SS_i)] = l_ratio([EFeatures(Spike_local,:) PCAFeatures(Spike_local,:)], ClusterSpikeID);
+                end
+%                 [IsolationDistance(ww,SS_i)] = isolation_distance(MaxFeatures(Spike_local,:), ClusterSpikeID);
+                [TimeIsolationDistance(ww,SS_i)] = isolation_distance([EFeatures(Spike_local,:) PCAFeatures(Spike_local,:)], ClusterSpikeID);
             end
         end
-        save(Mat_Filename, 'SS_U_ID', 'TimePoints', 'LRatio', 'L', 'Df','IsolationDistance')
+        
+        % Overall spike sort quality
+        L = nan(1, length(SS_U_ID));
+        LRatio = L;
+        Df = L;
+        IsolationDistance = L;
+        for SS_i = 1:length(SS_U_ID)
+            ClusterSpikeID = find(Spike_sort_ID == SS_U_ID(SS_i));
+            if length(ClusterSpikeID)<=8
+                % There is not enough spikes for that time point to
+                % calculate the Lratio, we need to have more spikes
+                % than the number of features
+            else
+                %                     [L(ww,SS_i), LRatio(ww,SS_i), Df(ww,SS_i)] = l_ratio(MaxFeatures(Spike_local,:), ClusterSpikeID);
+                [L(SS_i), LRatio(SS_i), Df(SS_i)] = l_ratio([EFeatures PCAFeatures], ClusterSpikeID);
+            end
+            %                 [IsolationDistance(ww,SS_i)] = isolation_distance(MaxFeatures(Spike_local,:), ClusterSpikeID);
+            [IsolationDistance(SS_i)] = isolation_distance([EFeatures PCAFeatures], ClusterSpikeID);
+        end
+        save(Mat_Filename, 'SS_U_ID', 'TimePoints', 'TimeLRatio', 'TimeL', 'TimeDf','TimeIsolationDistance','LRatio','L','Df','IsolationDistance')
         if DebugFig
             for SS_i = 1:length(SS_U_ID)
                 figure()
                 Xtime = (TimePoints(2:end)-TimeStep/2)/(60*10^6);
+                Xtime = Xtime-Xtime(1);
                 yyaxis left
-                plot(Xtime, LRatio, 'k-', 'LineWidth',2);
+                plot(Xtime, TimeLRatio(:,SS_i), 'b-', 'LineWidth',2);
                 ylabel('LRatio')
                 hold on
                 yyaxis right
-                plot(Xtime, IsolationDistance, 'r-', 'LineWidth',2);
-                ylabel('IsolationDistance')
+                plot(Xtime, log10(TimeIsolationDistance(:,SS_i)), 'r-', 'LineWidth',2);
+                ylabel('IsolationDistance (log10 scale)')
                 xlabel('Time (min)')
-                title(sprintf('Spike sorting quality cluster %d', SS_U_ID(SS_i)));
+                title(sprintf('Spike sorting quality cluster %d, LRatio = %.1f, IDist = %.1f', SS_U_ID(SS_i), LRatio(SS_i),IsolationDistance(SS_i)));
                 hold off
             end
         end 
