@@ -84,8 +84,8 @@ for Ntt_i=1:Num_Ntt % for each spike sorted unit
             Spike_local = find((Spike_arrival_times>=TimePoints(ww)) .* (Spike_arrival_times<TimePoints(ww+1)));
             for SS_i = 1:length(SS_U_ID)
                 ClusterSpikeID = find(Spike_sort_ID(Spike_local) == SS_U_ID(SS_i));
-                [L(ww,SS_i), LRatio(ww,SS_i), Df(ww,SS_i)] = l_ratio(Features(Spike_local, :), ClusterSpikeID);
-                [IsolationDistance(ww,SS_i)] = isolation_distance(Features(Spike_local, :), ClusterSpikeID);
+                [L(ww,SS_i), LRatio(ww,SS_i), Df(ww,SS_i)] = l_ratio(Features(:, Spike_local), ClusterSpikeID);
+                [IsolationDistance(ww,SS_i)] = isolation_distance(Features(:, Spike_local), ClusterSpikeID);
             end
         end
         save(Mat_Filename, 'SS_U_ID', 'TimePoints', 'LRatio', 'L', 'Df','IsolationDistance')
