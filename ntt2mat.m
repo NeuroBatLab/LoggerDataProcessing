@@ -70,7 +70,7 @@ for Ntt_i=1:Num_Ntt % for each spike sorted unit
         EFeatures = (squeeze(sum(Spike_snippets.^2,1))'.^0.5)./size(Spike_snippets,1);
         PCAFeatures = nan(size(Spike_snippets,3),size(Spike_snippets,2));
         for cc=1:size(Spike_snippets,2)
-            [~,Score] = pca(squeeze(Spike_snippets(:,cc,:))');
+            [~,Score] = pca(squeeze(Spike_snippets(:,cc,:))'./repmat(EFeatures(:,cc),1,size(Spike_snippets,1)));
             PCAFeatures(:,cc) = Score(:,1);
         end
         clear Spike_snippets
