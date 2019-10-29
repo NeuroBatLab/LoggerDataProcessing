@@ -26,6 +26,7 @@ for Tetrode_i=1:Num_tetrodes % for each of the electrode bundles, eg. tetrodes
         if any(any(isnan(LocalSnips)))
             GoodSnip(sn) = 0;
             fprintf(1,'Snippets with NaNs\t')
+            continue
         end
         
         % Identify the changes of slopes sign
@@ -111,9 +112,9 @@ for Tetrode_i=1:Num_tetrodes % for each of the electrode bundles, eg. tetrodes
         xlabel('Frequency (Hz)')
         ylabel('Power')
         fprintf('\n')
-        if ~GoodSnip(sn)
-            pause()
-        end
+%         if ~GoodSnip(sn)
+%             pause()
+%         end
     end
     warning('on','all')
     
