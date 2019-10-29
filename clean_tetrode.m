@@ -22,6 +22,12 @@ for Tetrode_i=1:Num_tetrodes % for each of the electrode bundles, eg. tetrodes
     for sn=1:NumSnipp
         LocalSnips = squeeze(Snippets(:,:,sn));
         fprintf(1,'Snippet %d/%d\t', sn, NumSnipp)
+        % Send to trash if there are NaNs in the snippet value
+        if any(any(isnan(LocalSnips)))
+            GoodSnip(sn) = 0;
+            fprintf(1,'Snippets with NaNs\t')
+        end
+        
         % Identify the changes of slopes sign
         LocalSnipsSign = diff(sign(diff(LocalSnips)));
         NumCc = size(LocalSnips,2);
@@ -41,20 +47,28 @@ for Tetrode_i=1:Num_tetrodes % for each of the electrode bundles, eg. tetrodes
         [P,F] = pspectrum(LocalSnips,FS);
         LocalSnipsAmp = max(LocalSnips) - min(LocalSnips);
         [LargestSnipAmp,LargestSnip] = max(LocalSnipsAmp);
-        [~,Locs] = findpeaks(P(:,LargestSnip), 'MinPeakHeight',max(P(:,LargestSnip))/10);
-        Fmax = F(Locs);
+        FmaxHigh = nan(NumCc,1);
+        for cc=1:NumCc
+            [~,Locs] = findpeaks(P(:,cc), 'MinPeakHeight',max(P(:,cc))/5);
+            FmaxHigh(cc) = any(F(Locs)>=0.003);
+        end
         % There's no way we can have a spike that shows a maximum power
         % higher than 3 periods per ms so higher than 0.003Hz
-        if any(Fmax>=0.003)
+        if sum(FmaxHigh)==NumCc
             GoodSnip(sn) = 0;
-            fprintf(1,'Fmax too high\t')
+            fprintf(1,'Fmax too high on all channels\t')
         end
         
         % Estimate the number of large peaks and their heights
-        Peaks = findpeaks(LocalSnips(:,LargestSnip), 'MinPeakWidth',3, 'MinPeakHeight', max(LocalSnips(:,LargestSnip))-LargestSnipAmp/3);
+        Peaks = findpeaks(LocalSnips(:,LargestSnip), 'MinPeakWidth',3, 'MinPeakHeight', max(LocalSnips(:,LargestSnip))-LargestSnipAmp/3,'MinPeakProminence', LargestSnipAmp/3);
         if length(Peaks)>1
             GoodSnip(sn) = 0;
             fprintf(1,'two many high peaks\t')
+        end
+        
+        if isempty(Peaks)
+            GoodSnip(sn) = 0;
+            fprintf(1,'No Peak!\t')
         end
         
         
@@ -97,7 +111,9 @@ for Tetrode_i=1:Num_tetrodes % for each of the electrode bundles, eg. tetrodes
         xlabel('Frequency (Hz)')
         ylabel('Power')
         fprintf('\n')
-%         pause()
+        if ~GoodSnip(sn)
+            pause()
+        end
     end
     warning('on','all')
     
