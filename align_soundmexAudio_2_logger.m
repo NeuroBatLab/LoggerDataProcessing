@@ -161,7 +161,8 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
                     warning('TTL pulses were very low amplitude, setting threshold for detection 10 times lower')
                     TTLHigh = find(abs(diff(Ttl_status))>0.018)+1;
                     if isempty(TTLHigh)
-                        error('ERROR: No TTL pulses detected!!!\n')
+                        warning('ERROR: No TTL pulses detected!!!\nPursuiing to next file\n')
+                        continue
                     end
                 end
                 TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
