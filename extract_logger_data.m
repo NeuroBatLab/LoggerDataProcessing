@@ -851,6 +851,12 @@ if Save_voltage
                 FS_local_Trans = Estimated_channelFS_Transceiver(File_i-1);
                 FS_local_Log = Estimated_channelFS_Logger(File_i-1);
             end
+            
+            if (mod(FS_local_Trans, FS)>500) || (mod(FS_local_Log, FS)>100) % There is probably a clock jump on the next file...
+                FS_local_Trans = FS;
+                FS_local_Log = FS;
+            end
+            
             File_timestamps_usec_from_sampling_period=File_start_timestamps(Ind_first_file) + Total_Nb_Samples*1e6/FS_local_Trans; % time stamp of the first sample of the current .DAT file = the number of samples since recording start * sampling period of the transceiver at that time point
             File_timestamps_usec_from_sampling_period_LogRef=File_start_timestamps_LogRef(Ind_first_file) + Total_Nb_Samples*1e6/FS_local_Log; % time stamp of the first sample of the current .DAT file = the number of samples since recording start * sampling period of the logger
             
