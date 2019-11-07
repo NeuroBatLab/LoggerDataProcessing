@@ -19,7 +19,8 @@ end
 
 % Set the path to a working directory on the computer so logger data are
 % transfered there and directly accessible for calculations
-WorkDir = ['~' filesep 'WorkingDirectory'];
+HerePath = pwd;
+WorkDir = fullfile(HerePath(1:(strfind(HerePath,'Documents')+9)), 'WorkingDirectory');
 
 % Bring data back on the computer
 fprintf(1,'Transferring data from the server %s\n on the local computer %s\n', Input_folder, WorkDir);
