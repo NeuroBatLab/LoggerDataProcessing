@@ -1,7 +1,11 @@
-function [Amp_env_voltage, Power_env]=running_rms(Filtered_voltage_trace, FS_in, Fhigh_power, FS_env, FigFlag)
-if nargin<5
+function [Amp_env_voltage, Power_env]=running_rms(Filtered_voltage_trace, FS_in, Fhigh_power, FS_env, Method, FigFlag)
+if nargin<6
     FigFlag=0;
 end
+if nargin<5
+    Method='filter'; % can be set either as filter (uses a low pass filtering appproach) or movrms using the function of matlab
+end
+
 if nargin<4
     FS_env = 100; % sampling frequency of the output running RMS set to be 100Hz (1 sample per 10ms)
 end
@@ -14,12 +18,19 @@ if Nframes<3*Nfilt
     error('The signal is too short to calculate an enveloppe with such a low frequency for the low-pass filter on signal power!\n')
 end
 
+if strcmp(Method, 'filter')
 % Generate filter and filter signal power
 Lowpass_filter = fir1(Nfilt, Fhigh_power*2.0/FS_in);
 Power_env = filtfilt(Lowpass_filter, 1, Filtered_voltage_trace.^2);
 Filtered_env = Power_env;
 Filtered_env(Filtered_env<0) = 0;
 Amp_env_voltage = Filtered_env.^.5;
+elseif strcmp(Method, 'movrms')
+    Movrms = dsp.MovingRMS(FS_in/FS_env);
+    Amp_env_voltage = Movrms(Filtered_voltage_trace);
+end
+
+
 % Resample to desired sampling rate
 if FS_in ~= FS_env
     Amp_env_voltage = resample(Amp_env_voltage, FS_env, round(FS_in));
@@ -27,6 +38,7 @@ if FS_in ~= FS_env
 end
 if FigFlag
     figure()
+    title(sprintf('%s', Method))
     subplot(1,2,1)
     plot(Filtered_voltage_trace, '-k')
     hold on
