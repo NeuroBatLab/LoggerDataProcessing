@@ -67,7 +67,7 @@ FS = nanmean(Estimated_channelFS_Transceiver);
 load(Filename, 'Timestamps_of_first_samples_usec');
 Spike_arrival_times_all=round(get_timestamps_for_Nlg_voltage_samples(SpikeStruct.ss,Indices_of_first_and_last_samples(:,1)',Timestamps_of_first_samples_usec,10^6/FS)); % the time stamps of all the detected spikes, rounded to integer microseconds; note that these are the time stamps of the last channel on this electrode bundle, which differ from the time stamps on the other channels of this electrode bundle by a few sampling periods of the Nlg AD converter
 
-
+fprintf(1,'*** Calculating dynamic Lratio and Isolation Distance for all units ***\n') 
 MinPoint = floor(min(Spike_arrival_times_all)/TimeStep)*TimeStep;
 MaxPoint = ceil(max(Spike_arrival_times_all)/TimeStep)*TimeStep;
 TimePoints = MinPoint:TimeStep:MaxPoint;
@@ -77,6 +77,7 @@ TimeL = TimeLRatio;
 TimeDf = TimeLRatio;
 TimeIsolationDistance = TimeLRatio;
 for ww=1:Nwin
+    fprintf(1,'Time window %d/%d\n',ww,Nwin)
     Spike_local = find((Spike_arrival_times_all>=TimePoints(ww)) .* (Spike_arrival_times_all<TimePoints(ww+1)));
     for SS_i = 1:length(UnitClusters)
         ClusterSpikeID = find(SpikeStruct.clu(Spike_local) == UnitClusters(SS_i));
@@ -106,13 +107,18 @@ for ww=1:Nwin
     end
 end
 
+%% Add something about SNR on spike snippets for each cell
+
 % Overall spike sort quality
+fprintf(1,'*** Calculating overall Lratio and Isolation Distance for all units ***\n')
 L = nan(1, length(UnitClusters));
 LRatio = L;
 Df = L;
 IsolationDistance = L;
+PCAFeatures = reshape(SpikeStruct.pcFeat, Num_spikes,size(SpikeStruct.pcFeat,2)*NChannels);% % from nSpikes x nFeatures x nLocalChannels to nSpikes x nFeatures for all channels
 for SS_i = 1:length(UnitClusters)
-    ClusterSpikeID = find(Spike_sort_ID == UnitClusters(SS_i));
+    fprintf(1,'Unit %d/%d\n', SS_i, length(UnitClusters))
+    ClusterSpikeID = find(SpikeStruct.clu == UnitClusters(SS_i));
     if length(ClusterSpikeID)<=8
         % There is not enough spikes for that time point to
         % calculate the Lratio, we need to have more spikes
@@ -122,23 +128,53 @@ for SS_i = 1:length(UnitClusters)
     end
     [IsolationDistance(SS_i)] = isolation_distance(PCAFeatures, ClusterSpikeID);
 end
-Mat_Filename = fullfile(OutputPath,sprintf('%s_%s_TT%d_SSorted_%d.mat',BatID, Date,TetrodeID,ClustID));
+Mat_Filename = fullfile(OutputPath,sprintf('%s_%s_TTAll_SSorted.mat',BatID, Date));
 save(Mat_Filename, 'UnitClusters', 'UnitClustersQ', 'TimePoints', 'TimeLRatio', 'TimeL', 'TimeDf','TimeIsolationDistance','LRatio','L','Df','IsolationDistance')
 if DebugFig
+    figure();
     for SS_i = 1:length(UnitClusters)
-        figure()
         Xtime = (TimePoints(2:end)-TimeStep/2)/(60*10^6);
         Xtime = Xtime-Xtime(1);
         yyaxis left
-        plot(Xtime, TimeLRatio(:,SS_i), 'b-', 'LineWidth',2);
-        ylabel('LRatio')
-        hold on
-        yyaxis right
-        plot(Xtime, log10(TimeIsolationDistance(:,SS_i)), 'r-', 'LineWidth',2);
+        if UnitClustersQ(SS_i)==1
+            plot(Xtime, TimeLRatio(:,SS_i), 'b--', 'LineWidth',2);
+            ylabel('LRatio')
+            hold on
+            yyaxis right
+            plot(Xtime, log10(TimeIsolationDistance(:,SS_i)), 'r--', 'LineWidth',2);
+        elseif UnitClustersQ(SS_i) == 2
+            plot(Xtime, TimeLRatio(:,SS_i), 'b-', 'LineWidth',2);
+            ylabel('LRatio')
+            hold on
+            yyaxis right
+            plot(Xtime, log10(TimeIsolationDistance(:,SS_i)), 'r-', 'LineWidth',2);
+        elseif UnitClustersQ(SS_i) ==3
+            plot(Xtime, TimeLRatio(:,SS_i), 'b:', 'LineWidth',2);
+            ylabel('LRatio')
+            hold on
+            yyaxis right
+            plot(Xtime, log10(TimeIsolationDistance(:,SS_i)), 'r:', 'LineWidth',2);
+        else
+            error('Impossible to identify cluster quality')
+        end
         ylabel('IsolationDistance (log10 scale)')
         xlabel('Time (min)')
         title(sprintf('Spike sorting quality cluster %d Q=%s, LRatio = %.1f, IDist = %.1f', UnitClusters(SS_i), Qlabel{UnitClustersQ(SS_i)}, LRatio(SS_i),IsolationDistance(SS_i)));
         hold off
     end
+    figure();
+    ColorCode = get(groot,'DefaultAxesColorOrder');
+    UUnitClusterQ = unique(UnitClustersQ);
+    for qq=1:length(UUnitClusterQ)
+        Local = find(UnitClustersQ==UUnitClusterQ(qq));
+        scatter(log10(IsolationDistance(Local)),LRatio(Local),[],ColorCode(UUnitClusterQ(qq),:),'filled')
+        hold on
+    end
+    legend('Multi-unit','Single-unit','Unclassified')
+    xlabel('IsolationDistance (log10 scale)')
+    ylabel('LRatio')
+    hold off
 end
+
+
 end
