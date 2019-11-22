@@ -62,28 +62,59 @@ for uu=1:Nunits
     fprintf(1, '%d templates for that unit\n', length(Utemplates));
     ChannelID = nan(length(Utemplates),1);
     Templates = cell(length(Utemplates),1);
+    if uu==1
+        FIG = figure();
+        pause()
+        ColorCode = get(groot,'DefaultAxesColorOrder');
+    end
+    if length(Utemplates)>6 && ~exist('FIGbis','var')
+        FIGbis = figure();
+        pause()
+    end
+    if length(Utemplates)>12 && ~exist('FIGter','var')
+        FIGter = figure();
+        pause()
+    end
     for tt=1:length(Utemplates)
         Templates{tt} = squeeze(SpikeStruct.temps(Utemplates(tt),:,:));
         AmpTemplate = max(Templates{tt}) - min(Templates{tt});
         [~,ChannelID(tt)] = max(AmpTemplate);
         
-        if uu==1
-            FIG = figure();
+        if tt<7
+            set(0,'CurrentFigure', FIG)
+            subplot(3,2,tt)
+        elseif tt<13
+            set(0,'CurrentFigure', FIGbis)
+            subplot(3,2,tt-6)
+        else
+            set(0,'CurrentFigure', FIGter)
+            subplot(3,2,tt-12)
         end
-        subplot(1, length(Utemplates),tt)
+        
+        
         for cc=1:NChannels
-            if cc<8
-                plot(Templates{tt}(:,cc), 'LineWidth',2, 'DisplayName',sprintf('Channel %d',cc))
-            elseif cc<15
-                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle','--', 'DisplayName',sprintf('Channel %d',cc))
+            if cc<5
+                plot(Templates{tt}(:,cc), 'LineWidth',2, 'Color',ColorCode(cc,:))
+            elseif cc<9
+                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle','--','Color',ColorCode(cc-4,:))
+            elseif cc<13
+                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle','-.', 'Color',ColorCode(cc-8,:))
             else
-                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle',':', 'DisplayName',sprintf('Channel %d',cc))
+                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle',':', 'Color',ColorCode(cc-12,:))
             end
             hold on
         end
         hold off
-        legend('location', 'SouthOutside', 'NumColumns',2)
-        title(sprintf('Template %d max on Channel %d', tt, ChannelID(tt)));
+%         if length(Utemplates)>1 && tt==length(Utemplates)
+%             legend('location', 'SouthOutside', 'NumColumns',2)
+%         elseif length(Utemplates)==1
+%             legend('location', 'SouthOutside', 'NumColumns',2)
+%         end
+        ChannT = mod(ChannelID(tt),4);
+        if ~ChannT
+            ChannT=4;
+        end
+        title(sprintf('Template %d max on Channel %d, TT%dC%d', tt, ChannelID(tt),ceil(ChannelID(tt)/4),ChannT));
     end
     
     UChannelID = unique(ChannelID);
@@ -131,9 +162,20 @@ for uu=1:Nunits
     end
     Mat_Filename = fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d.mat',BatID, Date,TetrodeID,ClustQ,ClustID));
     save(Mat_Filename, 'Spike_arrival_times', 'SpikeTemplatesID', 'Spike_snippets', 'Templates', 'ChannelID','UChannelID')
+    
     savefig(FIG,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_template.fig',BatID, Date,TetrodeID,ClustQ,ClustID)))
     print(FIG,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_template.pdf',BatID, Date,TetrodeID,ClustQ,ClustID)),'-dpdf','-fillpage')
     clf(FIG)
+    if length(Utemplates)>6
+        savefig(FIGbis,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_templatebis.fig',BatID, Date,TetrodeID,ClustQ,ClustID)))
+        print(FIGbis,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_templatebis.pdf',BatID, Date,TetrodeID,ClustQ,ClustID)),'-dpdf','-fillpage')
+        clf(FIGbis)
+    end
+    if length(Utemplates)>12
+        savefig(FIGter,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_templateter.fig',BatID, Date,TetrodeID,ClustQ,ClustID)))
+        print(FIGter,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_templateter.pdf',BatID, Date,TetrodeID,ClustQ,ClustID)),'-dpdf','-fillpage')
+        clf(FIGter)
+    end
 end
 
 
