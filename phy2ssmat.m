@@ -75,6 +75,10 @@ for uu=1:Nunits
         FIGter = figure();
         pause()
     end
+    if length(Utemplates)>18 && ~exist('FIGqua','var')
+        FIGqua = figure();
+        pause()
+    end
     for tt=1:length(Utemplates)
         Templates{tt} = squeeze(SpikeStruct.temps(Utemplates(tt),:,:));
         AmpTemplate = max(Templates{tt}) - min(Templates{tt});
@@ -86,9 +90,12 @@ for uu=1:Nunits
         elseif tt<13
             set(0,'CurrentFigure', FIGbis)
             subplot(3,2,tt-6)
-        else
+        elseif tt<19
             set(0,'CurrentFigure', FIGter)
             subplot(3,2,tt-12)
+        else
+            set(0,'CurrentFigure', FIGqua)
+            subplot(3,2,tt-18)
         end
         
         
@@ -175,6 +182,11 @@ for uu=1:Nunits
         savefig(FIGter,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_templateter.fig',BatID, Date,TetrodeID,ClustQ,ClustID)))
         print(FIGter,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_templateter.pdf',BatID, Date,TetrodeID,ClustQ,ClustID)),'-dpdf','-fillpage')
         clf(FIGter)
+    end
+    if length(Utemplates)>18
+        savefig(FIGqua,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_templatequa.fig',BatID, Date,TetrodeID,ClustQ,ClustID)))
+        print(FIGqua,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_templatequa.pdf',BatID, Date,TetrodeID,ClustQ,ClustID)),'-dpdf','-fillpage')
+        clf(FIGqua)
     end
 end
 
