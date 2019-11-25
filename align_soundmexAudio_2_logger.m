@@ -276,12 +276,6 @@ Transceiver_time_dfall1 = cell(NLog,1);
 fprintf('Extract TTL status changes from ')
 for ll=1:NLog
     LoggerID = str2double(All_loggers(ll).name(strfind(All_loggers(ll).name, 'r')+1 :end));
-    if ~isempty(Logger_list)
-        if isempty(intersect(Logger_list, LoggerID))
-            fprintf('%s not requested, discarded;', All_loggers(ll).name);
-            continue
-        end
-    end
     fprintf('%s ', All_loggers(ll).name);
     Eventfile = dir(fullfile(All_loggers(ll).folder,All_loggers(ll).name, 'extracted_data', '*_EVENTS.mat')); % load file with TTL status info
     load(fullfile(Eventfile.folder, Eventfile.name), 'event_types_and_details', 'event_timestamps_usec');
@@ -299,7 +293,12 @@ for ll=1:NLog
     else
         fprintf(1,'No session info ')
     end
-        
+    if ~isempty(Logger_list)
+        if isempty(intersect(Logger_list, LoggerID))
+            fprintf('%s not requested, discarded;', All_loggers(ll).name);
+            continue
+        end
+    end    
     Din = find(cellfun(@(x) contains(x,'Digital in'),event_types_and_details));
     Drise1 = find(cellfun(@(x) contains(x,'Digital in rising edge on pin number 1'),event_types_and_details(Din))); % extract which lines in EVENTS correspond to TTL status changes
     Dfall1 = find(cellfun(@(x) contains(x,'Digital in falling edge on pin number 1'),event_types_and_details(Din))); % extract which lines in EVENTS correspond to TTL status changes
