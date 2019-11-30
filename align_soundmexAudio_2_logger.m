@@ -154,7 +154,8 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
             % Check that PulseTrainInd is what we expect to be
             NPulses = length(PulseTrainInd);
             if any(TTLHigh(PulseTrainInd)' ~= TTLHigh(1) + FS*TTL_param.IPTI*(0:(NPulses-1)))
-                error('The TTL pulses are not correctly detected, they are not where we expect them to be!\n')
+                warning('The TTL pulses are not detected where we expect them to be!\n')
+                keyboard
             end
             % Now extract the pulses indices coded in the trains of pulses'
             % durations
