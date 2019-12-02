@@ -94,7 +94,14 @@ else
             fprintf(1, 'Channel %d/%d \n', cc,length(Active_channels))
             ch_local = find(Active_channels == (cc-1));
             Data=load(fullfile(CSCFiles(ch_local).folder, CSCFiles(ch_local).name),'AD_count_int16', 'AD_count_to_uV_factor','DataDeletionOnsetOffset_sample');
-            %% Add a section to suppress zones of identified artefacts
+            % Replace zones of identified artefacts by mean AD_count_int16
+            % value so that artefact are not detected as spikes
+            MeanVolt = mean(Data.AD_count_int16);
+            dd=1;
+            while Data.DataDeletionOnsetOffset_sample(dd,2)<=OffIndex
+                Data.AD_count_int16(Data.DataDeletionOnsetOffset_sample(dd,1) : Data.DataDeletionOnsetOffset_sample(dd,2)) = MeanVolt.*ones(diff(Data.DataDeletionOnsetOffset_sample(dd,:))+1,1);
+                dd=dd+1;
+            end
             OUTDAT{cc}  = single(-Data.AD_count_int16(OnIndex : OffIndex)).*single(Data.AD_count_to_uV_factor); % kilosort2 is based on negative threshold on the data at least for determining active channels, the voltage has been inverted in extract_logger_data, so inverting it back again here
         end
         OUTDAT = int16(cell2mat(OUTDAT));
