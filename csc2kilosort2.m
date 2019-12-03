@@ -98,7 +98,7 @@ else
             % value so that artefact are not detected as spikes
             MeanVolt = mean(Data.AD_count_int16);
             dd=1;
-            while Data.DataDeletionOnsetOffset_sample(dd,2)<=OffIndex
+            while (dd<=size(Data.DataDeletionOnsetOffset_sample,1)) && (Data.DataDeletionOnsetOffset_sample(dd,2)<=OffIndex)
                 Data.AD_count_int16(Data.DataDeletionOnsetOffset_sample(dd,1) : Data.DataDeletionOnsetOffset_sample(dd,2)) = MeanVolt.*ones(diff(Data.DataDeletionOnsetOffset_sample(dd,:))+1,1);
                 dd=dd+1;
             end
