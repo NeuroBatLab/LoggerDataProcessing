@@ -163,7 +163,7 @@ for uu=1:Nunits
         Voltage_Trace = double(Data(Bundle_channels,:));
         for channel_i=1:length(Bundle_channels)
             Filtered_voltage_trace = filtfilt(b,a,Voltage_Trace(channel_i,:));
-            Spike_snippet = Filtered_voltage_trace(NTemplatePoints+(1:NTemplatePoints))';
+            Spike_snippet = Filtered_voltage_trace(NTemplatePoints/2+(1:NTemplatePoints))';
             Spike_snippets(:,channel_i,spike_i)= Spike_snippet; % save the waveforms of the current spike (units are uV)
         end
     end
