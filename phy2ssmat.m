@@ -168,6 +168,10 @@ for uu=1:Nunits
         end
     end
     Mat_Filename = fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d.mat',BatID, Date,TetrodeID,ClustQ,ClustID));
+    if any(Spike_arrival_times==0)
+        fprintf('Some spike arrival times were not correctly calculated, manual input required\n')
+        keyboard
+    end
     save(Mat_Filename, 'Spike_arrival_times', 'SpikeTemplatesID', 'Spike_snippets', 'Templates', 'ChannelID','UChannelID')
     
     savefig(FIG,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_template.fig',BatID, Date,TetrodeID,ClustQ,ClustID)))
