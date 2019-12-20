@@ -40,6 +40,7 @@ for ff=1:length(CSCFiles)
     Iend = strfind(CSCFiles(ff).name, '.mat') -1;
     Active_channels(ff) = str2double(CSCFiles(ff).name(Istart:Iend));
 end
+Active_channels_sorted = sort(Active_channels);
 
 if PerTetrode
     for tt=1:Num_tetrodes
@@ -66,7 +67,7 @@ if PerTetrode
     clear DATOUT
 else
     % keep track of the active channels
-    A=num2str(sort(Active_channels));
+    A=num2str(Active_channels_sorted);
     A = [repmat('_',length(Active_channels),1) A];
     ActChannels = reshape(A',1,numel(A));
     ActChannels(strfind(ActChannels, ' ')) = [];
@@ -91,8 +92,8 @@ else
 %         OUTDAT = nan(length(Active_channels), NumSamp);
         OUTDAT = cell(length(Active_channels),1);
         parfor cc=1:length(Active_channels)
-            fprintf(1, 'Channel %d/%d \n', cc,length(Active_channels))
-            ch_local = find(Active_channels == (cc-1));
+            fprintf(1, 'Channel%d %d/%d \n',Active_channels_sorted(cc), cc,length(Active_channels))
+            ch_local = find(Active_channels == Active_channels_sorted(cc));
             Data=load(fullfile(CSCFiles(ch_local).folder, CSCFiles(ch_local).name),'AD_count_int16', 'AD_count_to_uV_factor','DataDeletionOnsetOffset_sample');
             % Replace zones of identified artefacts by mean AD_count_int16
             % value so that artefact are not detected as spikes
