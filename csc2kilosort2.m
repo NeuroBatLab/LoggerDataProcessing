@@ -17,6 +17,9 @@ if nargin<4
     Kilosort2Platform = 'win'; % can also be set to 'unix'
 end
 
+if ~exist(Output_folder, 'dir')
+    mkdir(Output_folder)
+end
 % Set the path to a working directory on the computer so logger data are
 % transfered there and directly accessible for calculations
 HerePath = pwd;
