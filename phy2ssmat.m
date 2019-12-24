@@ -7,6 +7,8 @@ addpath(genpath('/Users/elie/Documents/CODE/npy-matlab'))
 %% Massage input
 %Hard coded input:
 Num_EperBundle = 4; % We work with tetrodes
+Num_E = 4; %4 tetrodes
+TotChannels = Num_E*Num_EperBundle;
 TimeStep = 20*60*10^6;% Time Step of 30 min for the calculation of the time varying spike sorting quality measures
 DebugFig = 1; % Set to 1 to see figures of spike sorting quality.
 BandPassFilter = [600 6000];% Bandpass parameters for the input raw voltage
@@ -41,6 +43,29 @@ BatID = SpikeStruct.dat_path(1:5);
 Date = SpikeStruct.dat_path(7:14);
 NTemplatePoints = size(SpikeStruct.temps,2);
 NChannels = size(SpikeStruct.temps,3);
+
+% Get the channels ID and the channel ID per tetrode
+Ind_ = strfind(SpikeStruct.dat_path, '_');
+Ind_ = Ind_(3:end);
+NCh = length(Ind_);
+if NCh~=NChannels
+    error('There is an issue with channel identification')
+end
+ChannelsID = nan(NCh,1);
+ChannelsID_perT = cell(Num_E,1);
+for cc=1:NCh
+    if cc==NCh
+        Indend = strfind(SpikeStruct.dat_path, '.');
+        ChannelsID(cc) = str2double(SpikeStruct.dat_path(Ind_(cc)+1 : Indend-1));
+        TetrodeID = find(ChannelsID(cc)+1<=Num_EperBundle:Num_EperBundle:TotChannels,1,'first');
+        ChannelsID_perT{TetrodeID} = [ChannelsID_perT{TetrodeID} ChannelsID(cc)];
+    else
+        ChannelsID(cc) = str2double(SpikeStruct.dat_path(Ind_(cc)+1 : Ind_(cc+1)-1));
+        TetrodeID = find(ChannelsID(cc)+1<=Num_EperBundle:Num_EperBundle:TotChannels,1,'first');
+        ChannelsID_perT{TetrodeID} = [ChannelsID_perT{TetrodeID} ChannelsID(cc)];
+    end
+end
+
 
 % BandPass filter for the raw data
 [b,a]=butter(6,BandPassFilter/(SpikeStruct.sample_rate/2),'bandpass');
@@ -133,8 +158,8 @@ for uu=1:Nunits
     
     % determine to which tetrode that channel belonged and the associated
     % channels
-    TetrodeID = find(UChannelID<=Num_EperBundle:Num_EperBundle:NChannels,1,'first');
-    Bundle_channels = (TetrodeID-1)*Num_EperBundle + (1:Num_EperBundle);
+    TetrodeID = find(UChannelID<=Num_EperBundle:Num_EperBundle:TotChannels,1,'first');
+    Channel_rows = sum(cellfun(@length,ChannelsID_perT(1:TetrodeID-1))) + (1:length(ChannelsID_perT{TetrodeID}));
     
     % Calculate spike arrival time in transceiver time from SpikeStruct, in
     % microseconds (Spike_arrival_times)
@@ -152,7 +177,7 @@ for uu=1:Nunits
       
     % For all channels of the bundle (tetrode), collect the spike snippets
     fprintf(1, 'Collecting snippets\n')
-    Spike_snippets=zeros(NTemplatePoints,Num_EperBundle,Num_spikes);
+    Spike_snippets=nan(NTemplatePoints,Num_EperBundle,Num_spikes);
     FileID = fopen(fullfile(InputPath, SpikeStruct.dat_path));
     for spike_i=1:Num_spikes
         if ~mod(spike_i,round(Num_spikes/10))
@@ -160,8 +185,8 @@ for uu=1:Nunits
         end
         fseek(FileID,(SpikePosition_local(spike_i) - NTemplatePoints)*NChannels*2,-1);
         Data = fread(FileID,[NChannels NTemplatePoints*3], '*int16','l');
-        Voltage_Trace = double(Data(Bundle_channels,:));
-        for channel_i=1:length(Bundle_channels)
+        Voltage_Trace = double(Data(Channel_rows,:));
+        for channel_i=1:length(Channel_rows)
             Filtered_voltage_trace = filtfilt(b,a,Voltage_Trace(channel_i,:));
             Spike_snippet = Filtered_voltage_trace(NTemplatePoints/2+(1:NTemplatePoints))';
             Spike_snippets(:,channel_i,spike_i)= Spike_snippet; % save the waveforms of the current spike (units are uV)
