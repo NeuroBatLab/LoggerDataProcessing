@@ -17,6 +17,9 @@ if nargin<4
     Kilosort2Platform = 'win'; % can also be set to 'unix'
 end
 
+if ~exist(Output_folder,'dir')
+    mkdir(Output_folder)
+end
 % Set the path to a working directory on the computer so logger data are
 % transfered there and directly accessible for calculations
 HerePath = pwd;
@@ -72,18 +75,25 @@ else
     ActChannels = reshape(A',1,numel(A));
     ActChannels(strfind(ActChannels, ' ')) = [];
     % find the number of samples of each original recording DAT file
-    load(fullfile(CSCFiles(1).folder, CSCFiles(1).name),'Indices_of_first_and_last_samples','Bat_id','Date')
+    load(fullfile(CSCFiles(1).folder, CSCFiles(1).name),'Indices_of_first_and_last_samples','Bat_id','Date','AD_count_int16')
+    DataLength = length(AD_count_int16);
     Ndatfile = size(Indices_of_first_and_last_samples,1);
     IndicesNdat = [1:round(Ndatfile/10):Ndatfile Ndatfile];
+    OutputFileName = fullfile(Output_folder, sprintf('%s_%s_TempTetrode%s.bin',Bat_id,Date,ActChannels));
+    % Make sure the file does not already exist and erase it in case it does
+    if exist(OutputFileName,'file')
+        system(sprintf('rm %s',OutputFileName))
+    end
     if strcmp('win',Kilosort2Platform)
-        fid = fopen(fullfile(Output_folder, sprintf('%s_%s_TempTetrode%s.bin',Bat_id,Date,ActChannels)),'a','l');
+        fid = fopen(OutputFileName,'a','l');
     elseif strcmp('unix',Kilosort2Platform)
-        fid = fopen(fullfile(Output_folder, sprintf('%s_%s_TempTetrode%s.bin',Bat_id,Date,ActChannels)),'a','b');
+        fid = fopen(OutputFileName,'a','b');
     else
         error('The machine platform for which the file should be written is not recognize, indicate either unix or win')
     end
     % loop through time sections to fill in a matrix with all active
     % channels OUTDAT
+    Count = nan(length(IndicesNdat)-1,1);
     for ndat = 1:(length(IndicesNdat)-1)
         fprintf(1, 'Time section %d/%d for single experiment file\n', ndat,length(IndicesNdat)-1)
         OnIndex = Indices_of_first_and_last_samples(IndicesNdat(ndat),1);
@@ -108,13 +118,16 @@ else
         OUTDAT = int16(cell2mat(OUTDAT));
         whos OUTDAT
         if strcmp('win',Kilosort2Platform)
-            Count = fwrite(fid,OUTDAT,'int16','l');
+            Count(ndat) = fwrite(fid,OUTDAT,'int16','l');
         elseif strcmp('unix',Kilosort2Platform)
-            Count = fwrite(fid,OUTDAT,'int16','b');
+            Count(ndat) = fwrite(fid,OUTDAT,'int16','b');
         end
-        if Count~=numel(OUTDAT)
+        if Count(ndat)~=numel(OUTDAT)
             error('Samples not correctly written to the output file\n')
         end
+    end
+    if sum(Count)~=(DataLength*length(Active_channels))
+        error('Samples not correctly written to the output file, error 2\n')
     end
     clear AD_cound_int16
     clear OUTDAT

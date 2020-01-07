@@ -51,8 +51,8 @@ NCh = length(Ind_);
 if NCh~=NChannels
     error('There is an issue with channel identification')
 end
-ChannelsID = nan(NCh,1);
-ChannelsID_perT = cell(Num_E,1);
+ChannelsID = nan(NCh,1);% zero indexed
+ChannelsID_perT = cell(Num_E,1);% zero indexed
 for cc=1:NCh
     if cc==NCh
         Indend = strfind(SpikeStruct.dat_path, '.');
@@ -142,11 +142,11 @@ for uu=1:Nunits
 %         elseif length(Utemplates)==1
 %             legend('location', 'SouthOutside', 'NumColumns',2)
 %         end
-        ChannT = mod(ChannelID(tt),4);
+        ChannT = mod(ChannelsID(ChannelID(tt))+1,4);
         if ~ChannT
             ChannT=4;
         end
-        title(sprintf('Template %d max on Channel %d, TT%dC%d', tt, ChannelID(tt),ceil(ChannelID(tt)/4),ChannT));
+        title(sprintf('Template %d max on Channel %d, TT%dC%d', tt, ChannelsID(ChannelID(tt))+1,ceil((ChannelsID(ChannelID(tt))+1)/4),ChannT));
     end
     
     UChannelID = unique(ChannelID);
@@ -192,12 +192,22 @@ for uu=1:Nunits
             Spike_snippets(:,channel_i,spike_i)= Spike_snippet; % save the waveforms of the current spike (units are uV)
         end
     end
+    fclose(FileID);
     Mat_Filename = fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d.mat',BatID, Date,TetrodeID,ClustQ,ClustID));
     if any(Spike_arrival_times==0)
         fprintf('Some spike arrival times were not correctly calculated, manual input required\n')
         keyboard
     end
     save(Mat_Filename, 'Spike_arrival_times', 'SpikeTemplatesID', 'Spike_snippets', 'Templates', 'ChannelID','UChannelID')
+    
+    % Now check that we get the same output using the raw CSC data
+    [Spike_times, Spike_snippets2] = extract_tetrode_snippets(SpikePosition_local, Data_folder, ChannelsID_perT{TetrodeID}); % here we use the default Spike_window = [-7 24];
+    if any(Spike_times ~= Spike_arrival_times)
+        warning('Error in calculations of spike arrival times')
+        keyboard
+    end
+    
+        
     
     savefig(FIG,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_template.fig',BatID, Date,TetrodeID,ClustQ,ClustID)))
     print(FIG,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_template.pdf',BatID, Date,TetrodeID,ClustQ,ClustID)),'-dpdf','-fillpage')

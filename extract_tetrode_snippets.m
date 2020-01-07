@@ -1,4 +1,4 @@
-function [Spike_times, Spike_snippets] = extract_tetrode_snippets(Sample_indices_of_peaks, Data_folder, Channels, Spike_window)
+function [Spike_times, Spike_snippets] = extract_tetrode_snippets(Sample_indices_of_peaks, Data_folder, Channels, Spike_window,varargin)
 %% This function extracts the spike arrival times in microseconds and the snippets from all the electrode of a given tetrode
 
 % Sample_indices_of_peaks
@@ -13,6 +13,12 @@ FigCheck =0;
 if nargin<4
     Spike_window = [-7 24];
 end
+%% Sorting input arguments
+pnames = {'BandPassFilter'};
+dflts  = {[600 6000]};
+[BandPassFilter] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+
+
 
 if isempty(Sample_indices_of_peaks)
     Spike_snippets = [];
@@ -42,9 +48,39 @@ else
 
         % For all channels, collect the spike snippets
         Filename_temp = [Filename(1:end-4) '_temp' '.mat'];
-        s = load(Filename_temp, 'Filtered_voltage_trace');
-        Filtered_voltage_trace = s.Filtered_voltage_trace;
-        clear s
+        if exist(Filename_temp, 'file')
+            s = load(Filename_temp, 'Filtered_voltage_trace');
+            Filtered_voltage_trace = s.Filtered_voltage_trace;
+            clear s
+        else
+            s = load(Filename, 'AD_count_int16','AD_count_to_uV_factor','Indices_of_first_and_last_samples','DataDeletionOnsetOffset_sample','indices_missing_data_files');
+            Voltage_Trace = single(s.AD_count_int16)*single(s.AD_count_to_uV_factor);
+            %% Bandpass filter the input raw voltage
+            [b,a]=butter(6,BandPassFilter/(FS/2),'bandpass');
+
+            % Bandpass filtering is applied to continous chunks of recordings.
+            Chunks = [1 length(Voltage_Trace)];
+            if ~isempty(s.indices_missing_data_files)
+                Ind_firstNlast_samples_MissingFiles = s.Indices_of_first_and_last_samples(MissingFiles,:);
+                Chunks = [1;Ind_firstNlast_samples_MissingFiles(1:(end-1),2)+1 Ind_firstNlast_samples_MissingFiles(:,1)];
+            end
+
+            for cc=1:size(Chunks,1)
+                Voltage_Trace(Chunks(cc,1):Chunks(cc,2)) = filtfilt(b,a,double(Voltage_Trace(Chunks(cc,1):Chunks(cc,2))));
+            end
+            Filtered_voltage_trace = single(Voltage_Trace);
+            % Set artifact samples to NaN
+
+            for chunk_k = 1:size(s.DataDeletionOnsetOffset_sample,1)
+                data_deletion_samples = s.DataDeletionOnsetOffset_sample(chunk_k,:);
+                if ~any(isnan(data_deletion_samples))
+                    data_deletion_idx = data_deletion_samples(1):data_deletion_samples(2);
+                    Filtered_voltage_trace(data_deletion_idx) = NaN;
+                end
+            end
+        end
+
+
         for spike_i=1:Num_spikes
             Spike_snippet = Filtered_voltage_trace(Sample_indices_of_peaks(spike_i)+Spike_window(1):Sample_indices_of_peaks(spike_i)+Spike_window(2))';
             Spike_snippets(:,channel_i,spike_i)= Spike_snippet; % save the waveforms of the current spike (units are uV)
