@@ -97,7 +97,7 @@ else
     for ndat = 1:(length(IndicesNdat)-1)
         fprintf(1, 'Time section %d/%d for single experiment file\n', ndat,length(IndicesNdat)-1)
         OnIndex = Indices_of_first_and_last_samples(IndicesNdat(ndat),1);
-        OffIndex = Indices_of_first_and_last_samples(IndicesNdat(ndat+1),2);
+        OffIndex = Indices_of_first_and_last_samples(IndicesNdat(ndat+1)-1,2);
 %         NumSamp = OffIndex-OnIndex+1;
 %         OUTDAT = nan(length(Active_channels), NumSamp);
         OUTDAT = cell(length(Active_channels),1);
