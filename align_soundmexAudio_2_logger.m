@@ -140,7 +140,8 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
                     TTLHigh = find(diff(Ttl_status)>0.3)+1; % identify the increases in volatge
                     TTLHigh((find(diff(TTLHigh)==1))+1)=[];
                     if length(TTLHigh)~=length(TTLLow)
-                        error('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
+                        fprintf('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
+                        keyboard
                     end
                 end
             elseif length(TTLLow)>length(TTLHigh)
@@ -149,7 +150,8 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
                 TTLLow = find(diff(Ttl_status)<-0.60)+1; % identify the decreases in volatge
                 TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
                 if length(TTLHigh)~=length(TTLLow)%
-                    error('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
+                    fprintf('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
+                    keyboard
                 end
             end
             Pulse_dur_ms = (TTLLow - TTLHigh)/TTL_param.Base_ttl_length; % duration of each pulse in ms
