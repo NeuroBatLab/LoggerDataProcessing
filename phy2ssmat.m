@@ -38,6 +38,9 @@ params.excludeNoise = true;
 params.loadPCs = false;
 SpikeStruct = loadKSdir(InputPath, params);
 
+% Load the raw data out from kilosort2
+% REZ = load(fullfile(InputPath, 'rez.mat'));
+
 % Get the info of that recording
 BatID = SpikeStruct.dat_path(1:5);
 Date = SpikeStruct.dat_path(7:14);
@@ -49,7 +52,8 @@ Ind_ = strfind(SpikeStruct.dat_path, '_');
 Ind_ = Ind_(3:end);
 NCh = length(Ind_);
 if NCh~=NChannels
-    error('There is an issue with channel identification')
+    warning('There is an issue with channel identification')
+    keyboard
 end
 ChannelsID = nan(NCh,1);% zero indexed
 ChannelsID_perT = cell(Num_E,1);% zero indexed
@@ -151,9 +155,9 @@ for uu=1:Nunits
     
     UChannelID = unique(ChannelID);
     if length(UChannelID)>1
-        warning('This unit is formed by spikes that were detected by %d templates belonging to different channels (see below)\n Channel %d is taken as a reference for spike arrival times calculations\n', length(Utemplates),UChannelID(1))
+        warning('This unit is formed by spikes that were detected by %d templates belonging to different channels (see below)\n', length(Utemplates))
         UChannelID
-        UChannelID = UChannelID(1); % even if the unit is constituted from templates that are max on different channels, only take the first one as a reference
+        UChannelID = input('Which Channel ID do you want to choose as a reference?\n');
     end
     
     % determine to which tetrode that channel belonged and the associated
@@ -183,8 +187,8 @@ for uu=1:Nunits
         if ~mod(spike_i,round(Num_spikes/10))
             fprintf(1, '%d Percent\n',spike_i/round(Num_spikes/10)*10);
         end
-        fseek(FileID,(SpikePosition_local(spike_i) - NTemplatePoints)*NChannels*2,-1);
-        Data = fread(FileID,[NChannels NTemplatePoints*3], '*int16','l');
+        fseek(FileID,(SpikePosition_local(spike_i) - NTemplatePoints)*NCh*2,-1);
+        Data = fread(FileID,[NCh NTemplatePoints*2], '*int16','l');
         Voltage_Trace = double(Data(Channel_rows,:));
         for channel_i=1:length(Channel_rows)
             Filtered_voltage_trace = filtfilt(b,a,Voltage_Trace(channel_i,:));
@@ -201,12 +205,27 @@ for uu=1:Nunits
     save(Mat_Filename, 'Spike_arrival_times', 'SpikeTemplatesID', 'Spike_snippets', 'Templates', 'ChannelID','UChannelID')
     
     % Now check that we get the same output using the raw CSC data
-    [Spike_times, Spike_snippets2] = extract_tetrode_snippets(SpikePosition_local, Data_folder, ChannelsID_perT{TetrodeID}); % here we use the default Spike_window = [-7 24];
-    if any(Spike_times ~= Spike_arrival_times)
+    [Spike_times, Spike_snippets2] = extract_tetrode_snippets(SpikePosition_local, Data_folder, ChannelsID_perT{TetrodeID},[-NTemplatePoints/2+1 NTemplatePoints/2]); % here we use the a Spike_window of the same size as in kilosort2
+    Spike_snippets2 = -Spike_snippets2; % we are inverting the signal sign for kilosort2 calculations
+    if any((Spike_times-Spike_arrival_times)>1000) % check if spike srrival times differ by more than 1ms
         warning('Error in calculations of spike arrival times')
         keyboard
     end
-    
+    % loop through snippets and check how different they are!
+    ChannelRef = mod(UChannelID-1,4)+1;
+    for ss = 1:size(Spike_snippets,3)
+        SpikeCorr = corr(Spike_snippets(:,ChannelRef,ss),Spike_snippets2(:,ChannelRef,ss));
+        if SpikeCorr<0.85
+            figure(10)
+            clf
+            plot(Spike_snippets(:,ChannelRef,ss),'b-');
+            hold on;plot(Spike_snippets2(:,ChannelRef,ss),'r-');
+            title(sprintf('Correlation %.4f',SpikeCorr))
+            hold off
+            warning('Error in the spike extraction!?')
+            keyboard
+        end
+    end
         
     
     savefig(FIG,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_template.fig',BatID, Date,TetrodeID,ClustQ,ClustID)))
