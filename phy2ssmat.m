@@ -173,12 +173,21 @@ for uu=1:Nunits
     % time since we can load the info regarding time of file
     % onsets, and the sample frequency.
     load(Filename, 'Indices_of_first_and_last_samples');
-    Num_spikes=length(SpikePosition_local);
     load(Filename, 'Estimated_channelFS_Transceiver');
     FS = nanmean(Estimated_channelFS_Transceiver);
     load(Filename, 'Timestamps_of_first_samples_usec');
-    Spike_arrival_times=round(get_timestamps_for_Nlg_voltage_samples(SpikePosition_local,Indices_of_first_and_last_samples(:,1)',Timestamps_of_first_samples_usec,10^6/FS));% the time stamps of all the detected spikes, rounded to integer microseconds; note that these are the time stamps of the last channel on this electrode bundle, which differ from the time stamps on the other channels of this electrode bundle by a few sampling periods of the Nlg AD converter
-      
+    % restrict the data set to only the first files (quick fix when there is a
+    % clock jump in the recording, only keep the first part of the recording before the jump)
+%     IndJump = 1111;
+    IndJump = length(Timestamps_of_first_samples_usec);
+    Spike_arrival_times=round(get_timestamps_for_Nlg_voltage_samples(SpikePosition_local,Indices_of_first_and_last_samples(1:IndJump,1)',Timestamps_of_first_samples_usec(1:IndJump),10^6/FS));% the time stamps of all the detected spikes, rounded to integer microseconds; note that these are the time stamps of the last channel on this electrode bundle, which differ from the time stamps on the other channels of this electrode bundle by a few sampling periods of the Nlg AD converter
+    fprintf(1,'Spike arrival times of %d spikes were not calculated with End of session identified at %d and were discarded\n',sum(Spike_arrival_times==0),IndJump)
+    Spike_arrival_times(Spike_arrival_times==0) =[];
+    Num_spikes=length(Spike_arrival_times);
+    if Num_spikes<length(SpikePosition_local) % part of the recording was discarded, corect the TemplateID vector to the spikes that are collected
+        SpikeTemplatesID = SpikeTemplatesID(1:Num_spikes);
+    end
+    
     % For all channels of the bundle (tetrode), collect the spike snippets
     fprintf(1, 'Collecting snippets\n')
     Spike_snippets=nan(NTemplatePoints,Num_EperBundle,Num_spikes);
@@ -205,28 +214,29 @@ for uu=1:Nunits
     save(Mat_Filename, 'Spike_arrival_times', 'SpikeTemplatesID', 'Spike_snippets', 'Templates', 'ChannelID','UChannelID')
     
     % Now check that we get the same output using the raw CSC data
-    [Spike_times, Spike_snippets2] = extract_tetrode_snippets(SpikePosition_local, Data_folder, ChannelsID_perT{TetrodeID},[-NTemplatePoints/2+1 NTemplatePoints/2]); % here we use the a Spike_window of the same size as in kilosort2
-    Spike_snippets2 = -Spike_snippets2; % we are inverting the signal sign for kilosort2 calculations
-    if any((Spike_times-Spike_arrival_times)>1000) % check if spike srrival times differ by more than 1ms
-        warning('Error in calculations of spike arrival times')
-        keyboard
-    end
-    % loop through snippets and check how different they are!
-    ChannelRef = mod(UChannelID-1,4)+1;
-    for ss = 1:size(Spike_snippets,3)
-        SpikeCorr = corr(Spike_snippets(:,ChannelRef,ss),Spike_snippets2(:,ChannelRef,ss));
-        if SpikeCorr<0.85
-            figure(10)
-            clf
-            plot(Spike_snippets(:,ChannelRef,ss),'b-');
-            hold on;plot(Spike_snippets2(:,ChannelRef,ss),'r-');
-            title(sprintf('Correlation %.4f',SpikeCorr))
-            hold off
-            warning('Error in the spike extraction!?')
+    if IndJump == length(Timestamps_of_first_samples_usec) % we can easily check, other wise, don't do it, not implemented yet...
+        [Spike_times, Spike_snippets2] = extract_tetrode_snippets(SpikePosition_local, Data_folder, ChannelsID_perT{TetrodeID},[-NTemplatePoints/2+1 NTemplatePoints/2]); % here we use the a Spike_window of the same size as in kilosort2
+        Spike_snippets2 = -Spike_snippets2; % we are inverting the signal sign for kilosort2 calculations
+        if any((Spike_times-Spike_arrival_times)>1000) % check if spike srrival times differ by more than 1ms
+            warning('Error in calculations of spike arrival times')
             keyboard
         end
+        % loop through snippets and check how different they are!
+        ChannelRef = mod(UChannelID-1,4)+1;
+        for ss = 1:size(Spike_snippets,3)
+            SpikeCorr = corr(Spike_snippets(:,ChannelRef,ss),Spike_snippets2(:,ChannelRef,ss));
+            if SpikeCorr<0.85
+                figure(10)
+                clf
+                plot(Spike_snippets(:,ChannelRef,ss),'b-');
+                hold on;plot(Spike_snippets2(:,ChannelRef,ss),'r-');
+                title(sprintf('Correlation %.4f',SpikeCorr))
+                hold off
+                warning('Error in the spike extraction!?')
+                keyboard
+            end
+        end
     end
-        
     
     savefig(FIG,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_template.fig',BatID, Date,TetrodeID,ClustQ,ClustID)))
     print(FIG,fullfile(OutputPath,sprintf('%s_%s_TT%d_SS%s_%d_template.pdf',BatID, Date,TetrodeID,ClustQ,ClustID)),'-dpdf','-fillpage')
