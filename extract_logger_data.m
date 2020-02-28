@@ -265,7 +265,8 @@ else
     [~,F] = fileparts(Input_folder);
 end
 if ~strcmp(SerialNumber, F((end-length(SerialNumber)+1):end))
-    error('The logger Serial Number does not correspond with that of the folder containing it, please fix!\n%s', Input_folder);
+    fprintf(1,'The logger Serial Number does not correspond with that of the folder containing it, please fix!\n%s', Input_folder);
+    keyboard
 end
 
 % get the total number of channels, including inactive ones
