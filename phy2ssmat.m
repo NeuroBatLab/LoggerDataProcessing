@@ -12,7 +12,7 @@ TotChannels = Num_E*Num_EperBundle;
 TimeStep = 20*60*10^6;% Time Step of 30 min for the calculation of the time varying spike sorting quality measures
 DebugFig = 1; % Set to 1 to see figures of spike sorting quality.
 BandPassFilter = [600 6000];% Bandpass parameters for the input raw voltage
-
+Compare2CSCData = 0;
 
 % Deal with input variables
 if nargin<1
@@ -214,7 +214,7 @@ for uu=1:Nunits
     save(Mat_Filename, 'Spike_arrival_times', 'SpikeTemplatesID', 'Spike_snippets', 'Templates', 'ChannelID','UChannelID')
     
     % Now check that we get the same output using the raw CSC data
-    if IndJump == length(Timestamps_of_first_samples_usec) % we can easily check, other wise, don't do it, not implemented yet...
+    if IndJump == length(Timestamps_of_first_samples_usec) && Compare2CSCData % we can easily check, other wise, don't do it, not implemented yet...
         [Spike_times, Spike_snippets2] = extract_tetrode_snippets(SpikePosition_local, Data_folder, ChannelsID_perT{TetrodeID},[-NTemplatePoints/2+1 NTemplatePoints/2]); % here we use the a Spike_window of the same size as in kilosort2
         Spike_snippets2 = -Spike_snippets2; % we are inverting the signal sign for kilosort2 calculations
         if any((Spike_times-Spike_arrival_times)>1000) % check if spike srrival times differ by more than 1ms

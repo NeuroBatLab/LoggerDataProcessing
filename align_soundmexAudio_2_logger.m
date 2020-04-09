@@ -145,10 +145,15 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
                     end
                 end
             elseif length(TTLLow)>length(TTLHigh)
-%                  TTLHigh = find(diff(Ttl_status)>0.3)+1; % identify the increases in volatge
-%                 TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
-                TTLLow = find(diff(Ttl_status)<-1)+1; % identify the decreases in volatge
-                TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+                if strcmp(TTL_pulse_generator, 'Avisoft')
+                    TTLHigh = find(diff(Ttl_status)>0.3)+1; % identify the increases in volatge
+                    TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+                    TTLLow = find(diff(Ttl_status)<-0.6)+1; % identify the decreases in volatge
+                    TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+                elseif strcmp(TTL_pulse_generator, 'MOTU')
+                    TTLLow = find(diff(Ttl_status)<-1)+1; % identify the decreases in volatge
+                    TTLLow((find(diff(TTLLow)==1))+1)=[]; % eliminate consecutive points that show a large decrease in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+                end
                 if length(TTLHigh)~=length(TTLLow)%
                     fprintf('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
                     keyboard
@@ -529,6 +534,8 @@ File_number(Outsider_local) = [];
 %% Perform a linear fit for each file
 Slope_and_intercept = cell(length(TTL_files),1);
 Mean_std_x = cell(length(TTL_files),1);
+Slope_and_intercept_transc2audiosamp = cell(length(TTL_files),1);
+Mean_std_x_transc2audiosamp = cell(length(TTL_files),1);
 Mean_std_Pulse_TimeStamp_Transc = nan(length(TTL_files),2);
 Mean_std_Pulse_samp_audio = nan(length(TTL_files),2);
 FileNum_u = unique(File_number);
@@ -545,6 +552,7 @@ for ff=1:length(FileNum_u)
     Mean_std_Pulse_samp_audio(ff,2) = nanstd(Pulse_samp_audio_local);
     Pulse_samp_audio_localzscore = (Pulse_samp_audio_local - Mean_std_Pulse_samp_audio(ff,1))/Mean_std_Pulse_samp_audio(ff,2);
     [Slope_and_intercept{ff},~,Mean_std_x{ff}]=polyfit(Pulse_samp_audio_localzscore,Pulse_TimeStamp_Transc_localzscore, 1);
+    [Slope_and_intercept_transc2audiosamp{ff},~,Mean_std_x_transc2audiosamp{ff}]=polyfit(Pulse_TimeStamp_Transc_localzscore,Pulse_samp_audio_localzscore, 1);
     if ff==1
         F=figure();
     else
@@ -574,9 +582,9 @@ end
 
 %% save data to file
 if strcmp(TTL_pulse_recorder, 'MOTU')
-    save(fullfile(Audio_dir, sprintf('%s_%s_TTLPulseTimes.mat', ExpDate,ExpStartTime)),'Pulse_idx', 'Pulse_TimeStamp_Transc', 'File_number', 'Pulse_samp_audio', 'Slope_and_intercept','Mean_std_x','Mean_std_Pulse_TimeStamp_Transc','Mean_std_Pulse_samp_audio');
+    save(fullfile(Audio_dir, sprintf('%s_%s_TTLPulseTimes.mat', ExpDate,ExpStartTime)),'Pulse_idx', 'Pulse_TimeStamp_Transc', 'File_number', 'Pulse_samp_audio', 'Slope_and_intercept','Mean_std_x','Mean_std_Pulse_TimeStamp_Transc','Mean_std_Pulse_samp_audio','Slope_and_intercept_transc2audiosamp','Mean_std_x_transc2audiosamp');
 elseif strcmp(TTL_pulse_recorder, 'Avisoft')
-    save(fullfile(Audio_dir, sprintf('%s_TTLPulseTimes.mat', ExpDate)),'Pulse_idx', 'Pulse_TimeStamp_Transc', 'File_number', 'Pulse_samp_audio', 'Slope_and_intercept','Mean_std_x','Mean_std_Pulse_TimeStamp_Transc','Mean_std_Pulse_samp_audio');
+    save(fullfile(Audio_dir, sprintf('%s_TTLPulseTimes.mat', ExpDate)),'Pulse_idx', 'Pulse_TimeStamp_Transc', 'File_number', 'Pulse_samp_audio', 'Slope_and_intercept','Mean_std_x','Mean_std_Pulse_TimeStamp_Transc','Mean_std_Pulse_samp_audio','Slope_and_intercept_transc2audiosamp','Mean_std_x_transc2audiosamp');
 end
 %% Plot the drift between clocks
 % Get the delay of audio samples due to file changes

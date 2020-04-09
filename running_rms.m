@@ -15,7 +15,7 @@ end
 Nfilt = 2^ceil(log2(2*FS_in/Fhigh_power));
 Nframes = length(Filtered_voltage_trace);
 if Nframes<3*Nfilt
-    error('The signal is too short to calculate an enveloppe with such a low frequency for the low-pass filter on signal power!\n')
+    error('The signal is too short to calculate an enveloppe with such a low frequency for the low-pass filter on signal power Nframes=%d and Nfilt=%d!\n',Nframes,Nfilt)
 end
 
 if strcmp(Method, 'filter')
