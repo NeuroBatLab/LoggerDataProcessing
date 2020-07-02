@@ -724,12 +724,11 @@ if Save_voltage
             File_num_ID=File_start_details{File_i}((IndLT2+length(Str)): end); % eg. find "003" from "File started. File index: 003"
             fName_Ind = arrayfun(@(x) contains(x.name,File_num_ID),dat_file_names);
             fprintf('Channel %d/%d Reading file %d/%d: %s...\n',active_channel_i,Nactive_channels,File_i,Nfiles,File_num_ID);
-            File_name=dat_file_names(fName_Ind).name; % eg. "NEUR003.DAT"
             
-            if ~exist(fullfile(Input_folder,File_name),'file')
+            if ~any(fName_Ind)
                 Missing_files(File_i)=1;
-                disp(['Cannot open ' File_name '; continuing to next file...']);
-                if File_i==1
+                disp(['Cannot open file ' File_num_ID '; continuing to next file...']);
+                if File_i==1 || ~exist('File_data','var')
                     Ind_firstNlast_samples(File_i,1) = 1;
                 else
                     Ind_firstNlast_samples(File_i,1) = Ind_firstNlast_samples(File_i-1,2)+1;
@@ -740,6 +739,7 @@ if Save_voltage
             else
                 Missing_files(File_i)=0;
             end
+            File_name=dat_file_names(fName_Ind).name; % eg. "NEUR003.DAT"
             File_id=fopen(fullfile(Input_folder,File_name)); % open the .DAT file for binary read access by MATLAB
             File_data=int16(fread(File_id,ADC_data_format)); % import the AD count data as a single column vector with the class indicated by the logger
             fclose(File_id); % close the .DAT file
@@ -752,7 +752,7 @@ if Save_voltage
             end
             
             % Initialize output vectors for the channel
-            if find(~Missing_files(~isnan(Missing_files)),1, 'first') == File_i %  True for the first .DAT file loaded
+            if find(~Missing_files(1:File_i),1, 'first') == File_i %  True for the first .DAT file loaded
                 Samples_per_channel_per_file(active_channel_i)=length(File_data)/Num_channels;
                 AD_count_channeli_all_files=nan(1,Samples_per_channel_per_file(active_channel_i)*Nfiles); % the variable where all voltage data will be saved for that channel
                 Timestamps_first_samples_usec=nan(1,Nfiles); % the time stamps of the first sample of each file for that channel
@@ -772,14 +772,11 @@ if Save_voltage
                 % Check the start and stop indices of previous files that
                 % were not loaded and filled them in.
                 if File_i~=1
-                    IndMissFiles = sort(find(Missing_files(1:File_i)), 'descend');
-                    for ii=1:length(IndMissFiles)
-                        mm = IndMissFiles(ii);
-                        Ind_firstNlast_samples(mm,2) = Ind_firstNlast_samples(mm,1) + length(File_data)/Num_channels - 1;
-                        AD_count_channeli_all_files(Ind_firstNlast_samples(mm,1):Ind_firstNlast_samples(mm,2))=zeros(1,diff(Ind_firstNlast_samples(mm,:))+1); % There is no data points for this chunck
+                    for ii = 1:File_i-1
+                        Ind_firstNlast_samples(ii,:) = [(ii-1)*Samples_per_channel_per_file(active_channel_i)+1 ii*Samples_per_channel_per_file(active_channel_i)];
                     end
+                    AD_count_channeli_all_files(1:(File_i-1)*Samples_per_channel_per_file(active_channel_i)) = 0;
                 end
-                
             end
             
             % Identify the first and last sample (if this is a partially
