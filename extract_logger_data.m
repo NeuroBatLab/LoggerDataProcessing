@@ -453,6 +453,7 @@ else % performing a clock drift correction
         elseif contains(Event_types_and_details(Ind_Sync(unsync_i)),{'Started recording','Stopped recording'})
             Ind_CD_local=find(Ind_CD>Ind_Sync(unsync_i) & Ind_CD<Ind_Sync(unsync_i+1) & ~isnan(CD_sec));
             Ind_CD_local = [find(Ind_CD<Ind_Sync(unsync_i) & Ind_CD>1,1,'last'); Ind_CD_local]; %#ok<AGROW> % add just the previous clock drift measurement before the start of the recording
+            Ind_CD_local = Ind_CD_local(~isnan(CD_sec(Ind_CD_local)));
         end
         CD_sec_local = CD_sec(Ind_CD_local);
 
