@@ -404,8 +404,9 @@ if any(contains(Event_types_and_details, 'LoggerController')) && ~any(abs(CD_sec
     % Event_timestamps_usec = Event_timestamps_usec - LoggerTime_ref;
 
     % plot the result of clock difference correction to check for mistakes
-    Figure1 = figure(1);
-    cla(Figure1)
+    Figure1 = figure(1001);
+    Figure1.Visible = 'off';
+    clf(Figure1)
     hold on
     legend('Location','best', 'AutoUpdate', 'on')
     plot((CD_logger_stamps-LoggerTime_ref)/(1e6*60), CD_sec*1e3,'r-', 'DisplayName','Recorded clock differences') % transceiver stamps in min at clock difference reports vs. the reported clock differences that were used for estimation
@@ -586,8 +587,9 @@ else % performing a clock drift correction
     % Event_timestamps_usec = Event_timestamps_usec - LoggerTime_ref;
 
     % plot the result of clock difference correction to check for mistakes
-    Figure1 = figure(1);
-    cla(Figure1)
+    Figure1 = figure(1001);
+    Figure1.Visible = 'off';
+    clf(Figure1)
     hold on
     legend('Location','best', 'AutoUpdate', 'on')
     plot((CD_transceiver_stamps-LoggerTime_ref)/(1e6*60), CD_sec*1e3,'r+', 'DisplayName','Recorded clock differences') % transceiver stamps in min at clock difference reports vs. the reported clock differences that were used for estimation
@@ -863,14 +865,13 @@ if Save_voltage
             File_timestamp_discrepancies_LogRef=File_start_timestamps_LogRef(File_i)/1000-File_timestamps_usec_from_sampling_period_LogRef/1000; % difference between the event log time stamp and the time stamp calculated by counting samples, after roundig both to integer ms
             
             if ~any(contains(Event_types_and_details, 'LoggerController')) && any(CD_sec>=10-3)
-                Figure1; %#ok<VUNUS>
                 Ii_local = find(Ind_Logger_times == Ind_file_start(File_i));
-                hold on
+                hold(Figure1,'on')
                 if File_i==Nfiles
                     legend('AutoUpdate','on')
                 end
-                plot((File_start_timestamps(File_i)-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'g.', 'DisplayName', 'File onset log')  % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
-                plot((File_timestamps_usec_from_sampling_period-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'c.', 'DisplayName', 'File onset estimated') % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
+                plot(Figure1,(File_start_timestamps(File_i)-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'g.', 'DisplayName', 'File onset log')  % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
+                plot(Figure1,(File_timestamps_usec_from_sampling_period-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'c.', 'DisplayName', 'File onset estimated') % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
                 if File_i==Nfiles
                     hold off
                 end
@@ -912,7 +913,8 @@ if Save_voltage
         if length(unique(Estimated_channelFS_Transceiver))>1
             disp('***** WARNING: The sample frequency in transceiver time was not constant******')
             disp('see plot of sample frequency for more details')
-            Figure2=figure(2);
+            Figure2=figure(1002);
+            Figure2.Visible = 'off';
             title('variations of sample frequency and period along time')
             subplot(1,2,1)
             plot(Estimated_channelFS_Transceiver-nanmean(Estimated_channelFS_Transceiver))
@@ -1122,9 +1124,11 @@ if Save_voltage
         end
         fprintf('Channel %d/%d: Data from %d out of %d .DAT files in %s were processed and saved.\n',active_channel_i,Nactive_channels,Nfiles-sum(Missing_files), Nfiles, Input_folder);
         if Save_param_figure
-            print(Figure1,fullfile(Output_folder,sprintf('CD_correction%d.pdf',Active_channels(active_channel_i))),'-dpdf','-fillpage')
-            saveas(Figure1,fullfile(Output_folder,sprintf('CD_correction%d.fig',Active_channels(active_channel_i))))
-            if length(unique(Estimated_channelFS_Transceiver))>1
+            if isvalid(Figure1)
+                print(Figure1,fullfile(Output_folder,sprintf('CD_correction%d.pdf',Active_channels(active_channel_i))),'-dpdf','-fillpage')
+                saveas(Figure1,fullfile(Output_folder,sprintf('CD_correction%d.fig',Active_channels(active_channel_i))))
+            end
+            if length(unique(Estimated_channelFS_Transceiver))>1 && isvalid(Figure2)
                 saveas(Figure2,fullfile(Output_folder,sprintf('SampleFrequency%d.fig',Active_channels(active_channel_i))))
                 close(Figure2)
                 clear Figure2
