@@ -1002,6 +1002,7 @@ if Save_voltage
                 Voltage_Trace = single(AD_count_channeli_all_files)*single(ADC2uV_resolution);
                 clear AD_count_channeli_all_files
                 F20=figure(20);
+                F20.Visible = 'off';
                 for tt=1:length(FreeTextSamples)
                     Local_Voltage = Voltage_Trace(FreeTextSamples(tt) + (-round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug):round(nanmean(Estimated_channelFS_Transceiver)*Buffer_RFBug)));
                     DiffLocal_Voltage = abs(diff(Local_Voltage));
