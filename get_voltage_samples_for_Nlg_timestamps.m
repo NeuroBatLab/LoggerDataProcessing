@@ -29,6 +29,12 @@ function requested_sample_idxs=get_voltage_samples_for_Nlg_timestamps(...
 n_requested_timestamps = length(requested_timestamps_usec);
 file_idxs = nan(1,n_requested_timestamps);
 requested_sample_idxs = nan(1,n_requested_timestamps);
+
+if any(cellfun(@isempty,{indices_of_first_samples,timestamps_of_first_samples_usec,samples_per_file}))
+   disp('WARNING: No data for this logger')
+   return
+end
+
 max_time = timestamps_of_first_samples_usec(end) + samples_per_file*sampling_period_usec;
 
 for k = 1:n_requested_timestamps
