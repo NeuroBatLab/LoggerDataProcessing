@@ -989,8 +989,14 @@ if Save_voltage
                 Buffer_RFBug = 6*10^-3;
                 StartedRec = find(contains(Event_types_and_details, 'Mode change. Started recording'),1,'first');
                 StartedRecTime = Event_timestamps_usec(StartedRec);
+                if isempty(StartedRec)
+                    StartedRecTime = -Inf;
+                end
                 StoppedRec = find(contains(Event_types_and_details, 'Mode change. Stopped recording'),1,'last');
                 StoppedRecTime = Event_timestamps_usec(StoppedRec);
+                if isempty(StoppedRecTime)
+                    StoppedRecTime = Inf;
+                end
                 FreeTextInd = logical(contains(Event_types_and_details, 'Free text'));
                 FreeTextTime = Event_timestamps_usec(FreeTextInd);
                 FreeTextTime = FreeTextTime(FreeTextTime<(StoppedRecTime-100000)); % Get rid of Free texts that were sent too close from or after the end of recordings (within 100ms before the Mode change is log on the event file the recording already stopped)
