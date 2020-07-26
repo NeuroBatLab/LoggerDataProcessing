@@ -445,7 +445,7 @@ else % performing a clock drift correction
         % Identify the events that were logged in logger time for that data
         % section
         Ind_Logger_times_local=find(Ind_Logger_times>=Ind_Sync(unsync_i) & Ind_Logger_times<Ind_Sync(unsync_i+1)); % all the events that were originally logged with transceiver time stamps in the current interval
-        if isempty(Ind_Logger_times_local) % if there is no events in the current interval whose clock difference need to be estimated
+        if isempty(Ind_Logger_times_local)% if there is no events in the current interval whose clock difference need to be estimated
             continue
         end
         % Identify the indices of the clock reports for that section of data
@@ -455,6 +455,9 @@ else % performing a clock drift correction
             Ind_CD_local=find(Ind_CD>Ind_Sync(unsync_i) & Ind_CD<Ind_Sync(unsync_i+1) & ~isnan(CD_sec));
             Ind_CD_local = [find(Ind_CD<Ind_Sync(unsync_i) & Ind_CD>1,1,'last'); Ind_CD_local]; %#ok<AGROW> % add just the previous clock drift measurement before the start of the recording
             Ind_CD_local = Ind_CD_local(~isnan(CD_sec(Ind_CD_local)));
+        end
+        if isempty(Ind_CD_local)
+            continue
         end
         CD_sec_local = CD_sec(Ind_CD_local);
 
