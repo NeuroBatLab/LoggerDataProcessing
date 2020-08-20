@@ -971,7 +971,7 @@ if Save_voltage
             OUTDAT.Estimated_channelFS_Transceiver = Estimated_channelFS_Transceiver; % Exact value of sample frequency for each file according to transceiver clock
             OUTDAT.Timestamps_of_first_samples_usec=Timestamps_first_samples_usec;
             OUTDAT.Timestamps_of_first_samples_usec_Logger=Timestamps_first_samples_usec_Logger;
-            if ~any(contains(Event_types_and_details, 'LoggerController')) && any(CD_sec>=1.2*10^-3)
+            if ~any(contains(Event_types_and_details, 'LoggerController')) || any(CD_sec>=1.2*10^-3)
                 OUTDAT.CD_correction_data = struct('CD_logger_stamps',CD_logger_stamps(Ind_CD_local),'CD_sec',CD_sec_local,'Clock_difference_estimation',CD_Estimation);
             end
             OUTDAT.Samples_per_channel_per_file=Samples_per_channel_per_file(active_channel_i);

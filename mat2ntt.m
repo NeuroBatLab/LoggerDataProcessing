@@ -39,7 +39,7 @@ for Tetrode_i=1:Num_tetrodes % for each of the electrode bundles, eg. tetrodes
         % reasonable scales when using "shift + right click" to preview
         % waveforms in SpikeSort3D, we have to scale the waveforms up
         % as follows
-        ADBitVolts=800/(32767*10^6); % 32767 is the largest number that can be represented as a signed 16-bit integer, which SpikeSort3D requires to be mapped to the upper bound of the voltage data, which we have picked to be 500 uV here, so that the voltage axis during preview has reasonable scales
+        ADBitVolts=1e3/(32767*10^6); % 32767 is the largest number that can be represented as a signed 16-bit integer, which SpikeSort3D requires to be mapped to the upper bound of the voltage data, which we have picked to be 500 uV here, so that the voltage axis during preview has reasonable scales
         Waveforms_to_export_AD_counts=round(Snippets./(ADBitVolts*10^6)); % the AD counts here, multiplied by the "ADBitVolts" factor above, equals voltages in V
         Dim_data = size(Waveforms_to_export_AD_counts);
         if Dim_data(2) == 3 % Neuralynx is not happy when one channel of a tetrode is missing, complete with NaN the 4th dimension
