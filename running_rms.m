@@ -19,12 +19,12 @@ if Nframes<3*Nfilt
 end
 
 if strcmp(Method, 'filter')
-% Generate filter and filter signal power
-Lowpass_filter = fir1(Nfilt, Fhigh_power*2.0/FS_in);
-Power_env = filtfilt(Lowpass_filter, 1, Filtered_voltage_trace.^2);
-Filtered_env = Power_env;
-Filtered_env(Filtered_env<0) = 0;
-Amp_env_voltage = Filtered_env.^.5;
+    % Generate filter and filter signal power
+    Lowpass_filter = fir1(Nfilt, Fhigh_power*2.0/FS_in);
+    Power_env = filtfilt(Lowpass_filter, 1, Filtered_voltage_trace.^2);
+    Filtered_env = Power_env;
+    Filtered_env(Filtered_env<0) = 0;
+    Amp_env_voltage = Filtered_env.^.5;
 elseif strcmp(Method, 'movrms')
     Movrms = dsp.MovingRMS(FS_in/FS_env);
     Amp_env_voltage = Movrms(Filtered_voltage_trace);
