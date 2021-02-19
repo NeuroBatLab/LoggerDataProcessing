@@ -156,7 +156,39 @@ for w = 1:length(TTL_files) % run through all .WAV files and extract audio data 
                 end
                 if length(TTLHigh)~=length(TTLLow)%
                     fprintf('Error in align_soundmexAudio_2_logger: A ttl pulse was truncated\n');
-                    keyboard
+                    TTLHigh = find(diff(Ttl_status)>0.5)+1; % identify the increases in volatge
+                    TTLHigh((find(diff(TTLHigh)==1))+1)=[]; % eliminate consecutive points that show a large increase in the TTL pulses, they are just the continuity of a single pulse start (voltage going up)
+                    TTLLow = find(diff(Ttl_status)<-0.80)+1; % identify the decreases in volatge
+                    TTLLow((find(diff(TTLLow)==1))+1)=[];
+                    MinTTL = min(length(TTLHigh), length(TTLLow));
+                    Pulse_dur_ms = (TTLLow(1:MinTTL) - TTLHigh(1:MinTTL))/TTL_param.Base_ttl_length;
+                    if any(Pulse_dur_ms<5) && any(Pulse_dur_ms>14)
+                        % There are missing Lows and missing Highs, very
+                        % difficult to deal with!!!
+                        keyboard
+                    elseif any(Pulse_dur_ms<5) && ~any(Pulse_dur_ms>14)
+                        % Only extra lows
+                        TTLLow = find(diff(Ttl_status)<-0.90)+1; % identify the decreases in volatge
+                        TTLLow((find(diff(TTLLow)==1))+1)=[];
+                        MinTTL = min(length(TTLHigh), length(TTLLow));
+                        Pulse_dur_ms = (TTLLow(1:MinTTL) - TTLHigh(1:MinTTL))/TTL_param.Base_ttl_length;
+                        if any(Pulse_dur_ms>14)
+                            TTLLow = find(diff(Ttl_status)<-0.80)+1; % identify the decreases in volatge
+                            TTLLow((find(diff(TTLLow)==1))+1)=[];
+                            MinTTL = min(length(TTLHigh), length(TTLLow));
+                            Pulse_dur_ms = (TTLLow(1:MinTTL) - TTLHigh(1:MinTTL))/TTL_param.Base_ttl_length;
+                        end
+                        while length(TTLHigh)~=length(TTLLow) && any(Pulse_dur_ms<5) % Trim extra TTLs
+                            IndClear = find(Pulse_dur_ms<5,1);
+                            TTLLow(IndClear) = [];
+                            MinTTL = min(length(TTLHigh), length(TTLLow));
+                            Pulse_dur_ms = (TTLLow(1:MinTTL) - TTLHigh(1:MinTTL))/TTL_param.Base_ttl_length;
+                        end
+                    elseif ~any(Pulse_dur_ms<5) && any(Pulse_dur_ms>14)
+                        % unsure what should be the strategy here, cross
+                        % the bridge when we get there!
+                        keyboard
+                    end
                 end
             end
             Pulse_dur_ms = (TTLLow - TTLHigh)/TTL_param.Base_ttl_length; % duration of each pulse in ms
