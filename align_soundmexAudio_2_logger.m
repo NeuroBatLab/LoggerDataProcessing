@@ -357,7 +357,7 @@ for ll=1:NLog
         if isempty(OnsetTime) % there was a problem with the onset logging of the experiment let's keep everything
             OnsetTime = 0;
         end
-        if isempty(OffsetTime)
+        if isempty(OffsetTime) || isnan(OffsetTime)
             OffsetTime = Inf; % there was a problem with the onset logging of the experiment let's keep everything
         end
     else
