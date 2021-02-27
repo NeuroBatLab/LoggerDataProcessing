@@ -352,12 +352,16 @@ for ll=1:NLog
     B=find(cellfun(@(x) contains(x,Session_strings{1}),event_types_and_details));
     C=find(cellfun(@(x) contains(x,Session_strings{2}),event_types_and_details));
     if ~isempty(B) || ~isempty(C) % This is the reference logger, extract the informations about the session
+        if exist('OnsetTime', 'var') || exist('OffsetTime', 'var') % There should be only one reference logger, there might be conflicting info, check
+            warning('There should be only one reference logger, there might be conflicting info, check')
+            keyboard
+        end
         OnsetTime = 1e-3*event_timestamps_usec(B);
         OffsetTime = 1e-3*event_timestamps_usec(C);
         if isempty(OnsetTime) % there was a problem with the onset logging of the experiment let's keep everything
             OnsetTime = 0;
         end
-        if isempty(OffsetTime) || isnan(OffsetTime)
+        if isempty(OffsetTime) || any(isnan(OffsetTime))
             OffsetTime = Inf; % there was a problem with the onset logging of the experiment let's keep everything
         end
     else
