@@ -3,7 +3,7 @@ function phy2ssmat(InputPath, OutputPath)
 % 'extracted_data' folder at the same level as InputPath
 addpath(genpath('/Users/elie/Documents/CODE/Kilosort2_Tetrode'))
 addpath(genpath('/Users/elie/Documents/CODE/npy-matlab'))
-
+pathToYourConfigFile = '/Users/elie/Documents/CODE/Kilosort2_Tetrode/configFiles';
 %% Massage input
 %Hard coded input:
 Num_EperBundle = 4; % We work with tetrodes
@@ -52,8 +52,24 @@ Ind_ = strfind(SpikeStruct.dat_path, '_');
 Ind_ = Ind_(3:end);
 NCh = length(Ind_);
 if NCh~=NChannels
-    warning('There is an issue with channel identification')
-    keyboard
+    % Find the good map for tetrodes 
+    if NCh==16
+        chanMapFile = 'Tetrodex4Default_kilosortChanMap.mat';
+        ChannelMap = fullfile(pathToYourConfigFile, chanMapFile);
+    elseif NCh==15 && strcmp(BatID, '11689') % This is Hodor, who missed channel 11 (12th channel)
+        chanMapFile = 'Tetrodex4Ho_kilosortChanMap.mat';
+        ChannelMap = fullfile(pathToYourConfigFile, chanMapFile);
+    else
+        ChannelMap = input('Indicate the path and name of the matfile for your channel map :\n','s');
+    end
+    ChanMap = load(ChannelMap);
+    KSChanMap = nan(NChannels,1);
+    for cc=1:NChannels
+        KSChanMap(cc) = ChanMap.chanMap(logical((ChanMap.xcoords == SpikeStruct.xcoords(cc)) .* (ChanMap.ycoords == SpikeStruct.ycoords(cc))));
+    end
+        
+else
+    KSChanMap = 1:NCh;
 end
 ChannelsID = nan(NCh,1);% zero indexed
 ChannelsID_perT = cell(Num_E,1);% zero indexed
@@ -111,8 +127,8 @@ for uu=1:Nunits
     for tt=1:length(Utemplates)
         Templates{tt} = squeeze(SpikeStruct.temps(Utemplates(tt),:,:));
         AmpTemplate = max(Templates{tt}) - min(Templates{tt});
-        [~,ChannelID(tt)] = max(AmpTemplate);
-        
+        [~,MaxAmpTempInd] = max(AmpTemplate);
+        ChannelID(tt) = KSChanMap(MaxAmpTempInd);
         if tt<7
             set(0,'CurrentFigure', FIG)
             subplot(3,2,tt)
@@ -129,14 +145,14 @@ for uu=1:Nunits
         
         
         for cc=1:NChannels
-            if cc<5
-                plot(Templates{tt}(:,cc), 'LineWidth',2, 'Color',ColorCode(cc,:))
-            elseif cc<9
-                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle','--','Color',ColorCode(cc-4,:))
-            elseif cc<13
-                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle','-.', 'Color',ColorCode(cc-8,:))
+            if KSChanMap(cc)<5
+                plot(Templates{tt}(:,cc), 'LineWidth',2, 'Color',ColorCode(KSChanMap(cc),:))
+            elseif KSChanMap(cc)<9
+                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle','--','Color',ColorCode(KSChanMap(cc)-4,:))
+            elseif KSChanMap(cc)<13
+                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle','-.', 'Color',ColorCode(KSChanMap(cc)-8,:))
             else
-                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle',':', 'Color',ColorCode(cc-12,:))
+                plot(Templates{tt}(:,cc), 'LineWidth',2,'LineStyle',':', 'Color',ColorCode(KSChanMap(cc)-12,:))
             end
             hold on
         end
