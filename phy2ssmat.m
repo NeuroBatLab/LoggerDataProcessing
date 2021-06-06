@@ -55,26 +55,7 @@ NChannels = size(SpikeStruct.temps,3);
 Ind_ = strfind(SpikeStruct.dat_path, '_');
 Ind_ = Ind_(3:end);
 NCh = length(Ind_);
-if NCh~=NChannels
-    % Find the good map for tetrodes 
-    if NCh==16
-        chanMapFile = 'Tetrodex4Default_kilosortChanMap.mat';
-        ChannelMap = fullfile(pathToYourConfigFile, chanMapFile);
-    elseif NCh==15 && strcmp(BatID, '11689') % This is Hodor, who missed channel 11 (12th channel)
-        chanMapFile = 'Tetrodex4Ho_kilosortChanMap.mat';
-        ChannelMap = fullfile(pathToYourConfigFile, chanMapFile);
-    else
-        ChannelMap = input('Indicate the path and name of the matfile for your channel map :\n','s');
-    end
-    ChanMap = load(ChannelMap);
-    KSChanMap = nan(NChannels,1);
-    for cc=1:NChannels
-        KSChanMap(cc) = ChanMap.chanMap(logical((ChanMap.xcoords == SpikeStruct.xcoords(cc)) .* (ChanMap.ycoords == SpikeStruct.ycoords(cc))));
-    end
-        
-else
-    KSChanMap = 1:NCh;
-end
+
 ChannelsID = nan(NCh,1);% zero indexed
 ChannelsID_perT = cell(Num_E,1);% zero indexed
 for cc=1:NCh
@@ -89,6 +70,28 @@ for cc=1:NCh
         ChannelsID_perT{TetrodeID} = [ChannelsID_perT{TetrodeID} ChannelsID(cc)];
     end
 end
+
+if NCh~=NChannels
+    % Find the good map for tetrodes 
+    if NCh==16
+        chanMapFile = 'Tetrodex4Default_kilosortChanMap.mat';
+        ChannelMap = fullfile(pathToYourConfigFile, chanMapFile);
+    elseif NCh==15 && strcmp(BatID, '11689') % This is Hodor, who missed channel 11 (12th channel)
+        chanMapFile = 'Tetrodex4Ho_kilosortChanMap.mat';
+        ChannelMap = fullfile(pathToYourConfigFile, chanMapFile);
+    else
+        ChannelMap = input('Indicate the path and name of the matfile for your channel map :\n','s');
+    end
+    ChanMap = load(ChannelMap);
+    KSChanMap = nan(NChannels,1);
+    for cc=1:NChannels
+        KSChanMap(cc) = ChannelsID(logical((ChanMap.xcoords == SpikeStruct.xcoords(cc)) .* (ChanMap.ycoords == SpikeStruct.ycoords(cc))))+1;
+    end
+        
+else
+    KSChanMap = 1:NCh;
+end
+
 
 
 % BandPass filter for the raw data
