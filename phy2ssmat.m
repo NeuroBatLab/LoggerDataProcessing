@@ -173,7 +173,7 @@ for uu=1:Nunits
         if ~ChannT
             ChannT=4;
         end
-        title(sprintf('Template %d max on Channel %d, TT%dC%d', tt, ChannelsID(ChannelID(tt))+1,ceil((ChannelsID(ChannelID(tt))+1)/4),ChannT));
+        title(sprintf('Template %d max on Channel %d, TT%dC%d', tt, ChannelID(tt),ceil((ChannelID(tt))/4),ChannT));
     end
     
     UChannelID = unique(ChannelID);
