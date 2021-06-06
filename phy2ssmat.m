@@ -1,9 +1,7 @@
-function phy2ssmat(InputPath, OutputPath)
+function phy2ssmat(InputPath, CodePath,OutputPath)
 % this function expect that the original CSC files are sitting in
 % 'extracted_data' folder at the same level as InputPath
-addpath(genpath('/Users/elie/Documents/CODE/Kilosort2_Tetrode'))
-addpath(genpath('/Users/elie/Documents/CODE/npy-matlab'))
-pathToYourConfigFile = '/Users/elie/Documents/CODE/Kilosort2_Tetrode/configFiles';
+
 %% Massage input
 %Hard coded input:
 Num_EperBundle = 4; % We work with tetrodes
@@ -22,8 +20,14 @@ end
 % Get the folder containing the raw data as extracted by extract_logger_data.m
 [Root,~]=fileparts(InputPath);
 Data_folder = fullfile(Root, 'extracted_data');
-
 if nargin<2
+    CodePath = input('Please give the path to the folder containing all Github code (Kilosort2_Tetrode, npy-matlab)\n', 's');
+end
+addpath(genpath(fullfile(CodePath,'Kilosort2_Tetrode')))
+addpath(genpath(fullfile(CodePath,'npy-matlab')))
+pathToYourConfigFile = fullfile(CodePath,'Kilosort2_Tetrode/configFiles');
+
+if nargin<3
     OutputPath = Data_folder;
     fprintf(1, 'No outputpath indicated, data will be saved under the raw data folder:\n%s\n', OutputPath);
 else
