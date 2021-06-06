@@ -169,7 +169,7 @@ for uu=1:Nunits
 %         elseif length(Utemplates)==1
 %             legend('location', 'SouthOutside', 'NumColumns',2)
 %         end
-        ChannT = mod(ChannelsID(ChannelID(tt))+1,4);
+        ChannT = mod(ChannelID(tt),4);
         if ~ChannT
             ChannT=4;
         end
