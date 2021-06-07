@@ -7,8 +7,8 @@ function phy2ssmat(InputPath, CodePath,OutputPath)
 Num_EperBundle = 4; % We work with tetrodes
 Num_E = 4; %4 tetrodes
 TotChannels = Num_E*Num_EperBundle;
-TimeStep = 20*60*10^6;% Time Step of 30 min for the calculation of the time varying spike sorting quality measures
-DebugFig = 1; % Set to 1 to see figures of spike sorting quality.
+% TimeStep = 20*60*10^6;% Time Step of 30 min for the calculation of the time varying spike sorting quality measures
+% DebugFig = 1; % Set to 1 to see figures of spike sorting quality.
 BandPassFilter = [600 6000];% Bandpass parameters for the input raw voltage
 Compare2CSCData = 0;
 
@@ -99,7 +99,7 @@ end
 
 %% Loop through each SU or MU and save data
 UnitClusters = SpikeStruct.cids;
-UnitClustersQ = SpikeStruct.cgs;
+% UnitClustersQ = SpikeStruct.cgs;
 Nunits = length(UnitClusters);
 Qlabel = {'M','S','U'}; % M: multi-unit, S: single unit, U: Unsorted or Uncertain between noise or unit
 for uu=1:Nunits
@@ -179,7 +179,7 @@ for uu=1:Nunits
     UChannelID = unique(ChannelID);
     if length(UChannelID)>1
         warning('This unit is formed by spikes that were detected by %d templates belonging to different channels (see below)\n', length(Utemplates))
-        UChannelID
+        UChannelID %#ok<NOPRT>
         UChannelID = input('Which Channel ID do you want to choose as a reference?\n');
     end
     
@@ -197,7 +197,7 @@ for uu=1:Nunits
     % onsets, and the sample frequency.
     load(Filename, 'Indices_of_first_and_last_samples');
     load(Filename, 'Estimated_channelFS_Transceiver');
-    FS = nanmean(Estimated_channelFS_Transceiver);
+    FS = mean(Estimated_channelFS_Transceiver(~isnan(Estimated_channelFS_Transceiver)));
     load(Filename, 'Timestamps_of_first_samples_usec');
     % restrict the data set to only the first files (quick fix when there is a
     % clock jump in the recording, only keep the first part of the recording before the jump)
