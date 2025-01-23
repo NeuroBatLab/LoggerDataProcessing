@@ -591,7 +591,7 @@ else % performing a clock drift correction
 
     % plot the result of clock difference correction to check for mistakes
     Figure1 = figure(1001);
-    Figure1.Visible = 'off';
+    Figure1.Visible = 'on';
     clf(Figure1)
     hold on
     legend('Location','best', 'AutoUpdate', 'on')
@@ -869,12 +869,12 @@ if Save_voltage
             
             if ~any(contains(Event_types_and_details, 'LoggerController')) && any(CD_sec>=10-3)
                 Ii_local = find(Ind_Logger_times == Ind_file_start(File_i));
-                hold(Figure1,'on')
+                hold(Figure1.Children(2),'on')
                 if File_i==Nfiles
                     legend('AutoUpdate','on')
                 end
-                plot(Figure1,(File_start_timestamps(File_i)-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'g.', 'DisplayName', 'File onset log')  % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
-                plot(Figure1,(File_timestamps_usec_from_sampling_period-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'c.', 'DisplayName', 'File onset estimated') % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
+                plot(Figure1.Children(2),(File_start_timestamps(File_i)-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'g.', 'DisplayName', 'File onset log')  % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
+                plot(Figure1.Children(2),(File_timestamps_usec_from_sampling_period-LoggerTime_ref )/(1e6*60),Estimated_CD(Ii_local)/1e3,'c.', 'DisplayName', 'File onset estimated') % transceiver times vs. the estimated clock differences for all the time stamps that were originally logger times
                 if File_i==Nfiles
                     hold off
                 end
